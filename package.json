@@ -1,0 +1,21 @@
+{
+  "name": "shaka-with-ease-live",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "webpack --mode production",
+    "start": "webpack serve --mode development"
+  },
+  "dependencies": {
+    "@ease-live/ease-live-bridge-web": "1.22.0",
+    "shaka-player": "^4.16.0"
+  },
+  "devDependencies": {
+    "html-webpack-plugin": "^5.6.3",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.9.2",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}

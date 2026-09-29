@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shaka with Ease Live</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: #111;
+        color: #f5f5f5;
+      }
+
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 16px;
+      }
+
+      #player-wrapper {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #000;
+      }
+
+      #video,
+      #ease-live-view {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #video {
+        z-index: 0;
+      }
+
+      #ease-live-view {
+        z-index: 1;
+      }
+
+      #controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 12px;
+        background: rgba(0, 0, 0, 0.72);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+
+      #controls.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #play-pause {
+        height: 32px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 4px;
+        background: #fff;
+        color: #111;
+        cursor: pointer;
+      }
+
+      #live-badge {
+        font-size: 0.75rem;
+        letter-spacing: 0.04em;
+      }
+
+      #status {
+        margin-top: 12px;
+        min-height: 1.2em;
+        color: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shaka with Ease Live</h1>
+      <!--
+        Stacking required by Ease Live:
+        video (bottom), overlay view (middle), control bar (top, 48px only).
+        The bar must not cover the video or the overlay cannot receive clicks.
+      -->
+      <div id="player-wrapper">
+        <video id="video" playsinline></video>
+        <div id="ease-live-view"></div>
+        <div id="controls" class="visible">
+          <button id="play-pause" type="button">Play</button>
+          <span id="live-badge">LIVE</span>
+        </div>
+      </div>
+      <p id="status">Loading stream…</p>
+    </main>
+  </body>
+</html>
