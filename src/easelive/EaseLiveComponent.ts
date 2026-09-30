@@ -1,7 +1,10 @@
 import EaseLive from '@ease-live/ease-live-bridge-web';
 import type { PlayerPlugin } from '@ease-live/ease-live-bridge-web';
-import type { AppStatus, EaseLiveErrorPayload } from '../../packages/shared-sdk/index';
-import { easeLiveConfig } from '../config';
+import type {
+  AppStatus,
+  BrandEaseLiveConfig,
+  EaseLiveErrorPayload,
+} from '../../packages/shared-sdk/index';
 
 interface EaseLiveHandlers {
   onStatus?: (status: AppStatus) => void;
@@ -9,8 +12,8 @@ interface EaseLiveHandlers {
 }
 
 /**
- * Creates the Ease Live bridge and loads the program from `src/config.ts`.
- * The graphics inside `#ease-live-view` come from that Studio program.
+ * Creates the Ease Live bridge for one brand.
+ * The graphics inside `#ease-live-view` come from `easeLiveConfig.programId`.
  * Register `app.status` and `easelive.error` before `init()`.
  * `disabled` or a fatal error destroys the bridge. `hidden` leaves it alive.
  */
@@ -20,6 +23,7 @@ export class EaseLiveComponent {
   constructor(
     private readonly viewContainer: string | HTMLElement,
     private readonly playerPlugin: PlayerPlugin,
+    private readonly easeLiveConfig: BrandEaseLiveConfig,
     private readonly handlers: EaseLiveHandlers = {},
   ) {}
 
@@ -29,10 +33,10 @@ export class EaseLiveComponent {
     }
 
     const instance = new EaseLive({
-      accountId: easeLiveConfig.accountId,
-      projectId: easeLiveConfig.projectId,
-      programId: easeLiveConfig.programId,
-      env: easeLiveConfig.env,
+      accountId: this.easeLiveConfig.accountId,
+      programId: this.easeLiveConfig.programId,
+      ...(this.easeLiveConfig.projectId ? { projectId: this.easeLiveConfig.projectId } : {}),
+      env: this.easeLiveConfig.env ?? 'prod',
       viewContainer: this.viewContainer,
       playerPlugin: this.playerPlugin,
     });

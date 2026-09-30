@@ -2,11 +2,14 @@
  * Entry point. Webpack bundles this file only.
  *
  * Startup order matters:
- * 1. Create Shaka and the adapter, then start the stream load.
- * 2. Call Ease Live `init()` after that, so the adapter can wait on the same load.
- * 3. The adapter emits `player.ready` when the load finishes, and the overlay appears.
+ * 1. Load `brands/<id>.json` and apply its theme.
+ * 2. Create Shaka and the adapter, then start the stream load.
+ * 3. Call Ease Live `init()` after that, so the adapter can wait on the same load.
+ * 4. The adapter emits `player.ready` when the load finishes, and the overlay appears.
  */
-import { easeLiveConfig } from './config';
+import type { BrandConfig } from '../packages/shared-sdk/index';
+import { applyBrandTheme } from './brand/applyBrandTheme';
+import { loadBrandConfig } from './brand/loadBrandConfig';
 import { EaseLiveComponent } from './easelive/EaseLiveComponent';
 import { createWebPlayerPlugin } from './plugin/WebPlayerPlugin';
 import { ShakaPlayer } from './shaka/ShakaPlayer';
@@ -22,6 +25,16 @@ async function main(): Promise<void> {
     throw new Error('Player markup is missing.');
   }
 
+  let brand: BrandConfig;
+  try {
+    brand = await loadBrandConfig();
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : 'Failed to load brand config.';
+    return;
+  }
+
+  applyBrandTheme(brand.theme);
+
   const player = new ShakaPlayer(video);
   player.onError((message) => {
     status.textContent = message;
@@ -30,6 +43,7 @@ async function main(): Promise<void> {
   const easeLive = new EaseLiveComponent(
     view,
     createWebPlayerPlugin(player, { controls, playButton }),
+    brand.easeLive,
     {
       onStatus(next) {
         status.textContent = `Overlay ${next}`;
@@ -41,7 +55,7 @@ async function main(): Promise<void> {
   );
 
   // Start the load before init so `whenReady()` already has a promise when the plugin runs.
-  const loadPromise = player.load(easeLiveConfig.streamUrl);
+  const loadPromise = player.load(brand.streamUrl);
   easeLive.init();
 
   try {

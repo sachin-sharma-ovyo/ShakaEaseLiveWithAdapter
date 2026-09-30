@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "brand-config.schema.json",
+  "title": "BrandConfig",
+  "description": "Per-tenant settings for the white-label player. Copy brands/default.json, edit this shape, and open the player with ?brand=<file name>.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["brandId", "theme", "easeLive", "streamUrl"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this schema so editors can validate the brand file."
+    },
+    "brandId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant id. Use the same value as the JSON file name when selecting the brand with ?brand=."
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "backgroundColor", "textColor", "accentColor", "accentTextColor", "fontFamily"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Brand name shown in the page heading and document title."
+        },
+        "backgroundColor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Page background. Any CSS color is accepted."
+        },
+        "textColor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accentColor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Control color, used by the play button."
+        },
+        "accentTextColor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text color drawn on top of accentColor."
+        },
+        "fontFamily": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "easeLive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountId", "programId"],
+      "description": "Ease Live Studio program for this tenant.",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "programId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional. Ease Live infers the project from programId when this is omitted."
+        },
+        "env": {
+          "type": "string",
+          "enum": ["prod", "staging", "dev"],
+          "description": "Ease Live environment. Defaults to prod."
+        }
+      }
+    },
+    "streamUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Per-tenant backend stream URL. Point this at the brand's HLS or DASH playback endpoint."
+    }
+  }
+}

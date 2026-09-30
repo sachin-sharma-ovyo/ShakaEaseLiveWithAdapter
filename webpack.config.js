@@ -1,5 +1,30 @@
+const fs = require('fs');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+
+// Copies each brands/*.json next to the bundle so a client can edit a tenant file
+// after the SDK is built, then open the player with ?brand=<file name>.
+function copyBrandConfigs(compiler) {
+  const { webpack } = compiler;
+  compiler.hooks.thisCompilation.tap('CopyBrandConfigs', (compilation) => {
+    compilation.hooks.processAssets.tap(
+      {
+        name: 'CopyBrandConfigs',
+        stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+      },
+      () => {
+        const brandsDir = path.resolve(__dirname, 'brands');
+        for (const file of fs.readdirSync(brandsDir)) {
+          if (!file.endsWith('.json')) {
+            continue;
+          }
+          const source = fs.readFileSync(path.join(brandsDir, file));
+          compilation.emitAsset(`brands/${file}`, new webpack.sources.RawSource(source));
+        }
+      },
+    );
+  });
+}
 
 // Bundles the web app only. packages/shared-sdk is type-checked by `tsc`, not emitted here.
 module.exports = {
@@ -25,6 +50,7 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './index.html',
     }),
+    { apply: copyBrandConfigs },
   ],
   devServer: {
     port: 8080,
