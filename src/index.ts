@@ -10,6 +10,7 @@ import { easeLiveConfig } from './config';
 import { EaseLiveComponent } from './easelive/EaseLiveComponent';
 import { createWebPlayerPlugin } from './plugin/WebPlayerPlugin';
 import { ShakaPlayer } from './shaka/ShakaPlayer';
+import { startRemoteNavigation } from './tizen/remoteNavigation';
 
 async function main(): Promise<void> {
   const video = document.querySelector<HTMLVideoElement>('#video');
@@ -39,6 +40,8 @@ async function main(): Promise<void> {
       },
     },
   );
+
+  startRemoteNavigation(player);
 
   // Start the load before init so `whenReady()` already has a promise when the plugin runs.
   const loadPromise = player.load(easeLiveConfig.streamUrl);

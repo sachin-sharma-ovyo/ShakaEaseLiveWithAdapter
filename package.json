@@ -10,7 +10,15 @@
     "@ease-live/ease-live-bridge-web": "1.22.0",
     "shaka-player": "^4.16.0"
   },
+  "browserslist": [
+    "chrome >= 51",
+    "firefox >= 54",
+    "safari >= 10"
+  ],
   "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "babel-loader": "^10.0.0",
     "html-webpack-plugin": "^5.6.3",
     "ts-loader": "^9.5.2",
     "typescript": "^5.9.2",

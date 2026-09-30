@@ -8,6 +8,17 @@ module.exports = {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
     clean: true,
+    environment: {
+      arrowFunction: true,
+      const: true,
+      destructuring: true,
+      forOf: true,
+      optionalChaining: false,
+      templateLiteral: true,
+      bigIntLiteral: false,
+      dynamicImport: false,
+      module: false,
+    },
   },
   resolve: {
     extensions: ['.ts', '.js'],
@@ -18,6 +29,23 @@ module.exports = {
         test: /\.ts$/,
         use: 'ts-loader',
         exclude: /node_modules/,
+      },
+      {
+        // Dependencies are published with newer syntax. Downlevel them to ES2015.
+        test: /\.js$/,
+        loader: 'babel-loader',
+        options: {
+          presets: [
+            [
+              '@babel/preset-env',
+              {
+                targets: { chrome: '51', firefox: '54', safari: '10' },
+                modules: false,
+                bugfixes: true,
+              },
+            ],
+          ],
+        },
       },
     ],
   },
