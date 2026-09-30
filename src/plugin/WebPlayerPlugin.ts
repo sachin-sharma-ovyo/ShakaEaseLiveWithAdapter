@@ -4,26 +4,21 @@ import type {
   ControlsVisibility,
   PlayerPluginBridge,
   PlayerPluginEvents,
-  PlayerState,
   PlayerTimePayload,
-} from '../../packages/shared-sdk/index';
+} from '../../packages/shared-sdk/plugininterface';
+import type { PlayerControls } from '../shaka/playercontrols';
 import type { ShakaPlayer } from '../shaka/ShakaPlayer';
 
 const TIME_INTERVAL_MS = 250;
 
-interface PluginElements {
-  controls: HTMLElement;
-  playButton: HTMLButtonElement;
-}
-
 /**
  * Adapter between Shaka and Ease Live. This is the only app file that knows both.
- * Event names and payloads come from `packages/shared-sdk/index.ts`.
- * Follow `packages/shared-sdk/WebPlayerPlugin.example.ts` when changing the flow.
+ * Event names and payloads come from `packages/shared-sdk/plugininterface/index.ts`.
+ * Follow `packages/shared-sdk/plugininterface/WebPlayerPlugin.example.ts` when changing the flow.
  */
 export function createWebPlayerPlugin(
   player: ShakaPlayer,
-  elements: PluginElements,
+  controls: PlayerControls,
 ): EaseLivePlayerPlugin {
   return (easeLive) => {
     const bridge = toBridge(easeLive);
@@ -55,20 +50,26 @@ export function createWebPlayerPlugin(
       true,
     );
 
-    // Overlay background clicks are an SDK event outside the shared contract.
-    // The adapter turns that click into `player.controls`.
+    // Overlay background clicks toggle the bar. They are not part of the shared contract.
+    // `view.mouseenter` shows it again. The bar stays 48px so the overlay keeps the video.
     easeLive.on(
       'stage.clicked',
       () => {
-        const visible = !elements.controls.classList.contains('visible');
-        setControlsVisible(elements.controls, visible, bridge);
+        setControlsVisible(controls, !controls.isVisible(), bridge);
+      },
+      true,
+    );
+
+    easeLive.on(
+      'view.mouseenter',
+      () => {
+        setControlsVisible(controls, true, bridge);
       },
       true,
     );
 
     // Shaka -> overlay.
     player.onPlaybackState((state) => {
-      updatePlayButton(elements.playButton, state);
       bridge.emit('player.state', { state });
     });
 
@@ -90,15 +91,7 @@ export function createWebPlayerPlugin(
       });
     };
 
-    elements.playButton.addEventListener('click', () => {
-      if (player.isPaused()) {
-        void player.play();
-        return;
-      }
-      player.pause();
-    });
-
-    setControlsVisible(elements.controls, elements.controls.classList.contains('visible'), bridge);
+    setControlsVisible(controls, controls.isVisible(), bridge);
 
     player.whenReady().then(
       () => {
@@ -187,15 +180,11 @@ function readTimecode(
 }
 
 function setControlsVisible(
-  controls: HTMLElement,
+  controls: PlayerControls,
   visible: boolean,
   bridge: PlayerPluginBridge,
 ): void {
-  controls.classList.toggle('visible', visible);
+  controls.setVisible(visible);
   const visibility: ControlsVisibility = visible ? 'visible' : 'hidden';
   bridge.emit('player.controls', { controls: visibility });
-}
-
-function updatePlayButton(playButton: HTMLButtonElement, state: PlayerState): void {
-  playButton.textContent = state === 'playing' || state === 'buffering' ? 'Pause' : 'Play';
 }

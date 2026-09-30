@@ -1,5 +1,5 @@
 import shaka from 'shaka-player';
-import type { PlayerState } from '../../packages/shared-sdk/index';
+import type { PlayerState } from '../../packages/shared-sdk/plugininterface';
 
 type StateListener = (state: PlayerState) => void;
 type DestroyListener = () => void;
@@ -18,8 +18,9 @@ interface PlayerErrorEvent extends Event {
 
 /**
  * Shaka playback wrapper. The adapter is the only class that talks to Ease Live.
- * Shaka's own control overlay is not used: a full-surface click layer would block
- * the Ease Live graphics. The page supplies a small bottom bar instead.
+ * Shaka UI is not mounted. Its control layer covers the video and toggles playback
+ * on any click, which blocks the Ease Live overlay.
+ * Play and pause live in the 48px bar in `index.html`, above the overlay.
  *
  * `getPlayheadDate()` is the Unix time source for `player.time` when the manifest
  * has `EXT-X-PROGRAM-DATE-TIME`. The adapter interpolates when that date is missing.
@@ -40,6 +41,9 @@ export class ShakaPlayer {
 
     shaka.polyfill.installAll();
     this.video = video;
+    // Native controls paint a full-video click layer. Ease Live needs that surface.
+    this.video.controls = false;
+    this.video.removeAttribute('controls');
     this.player = new shaka.Player();
     this.bindVideoEvents();
     this.bindPlayerEvents();

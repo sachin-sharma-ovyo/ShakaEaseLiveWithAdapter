@@ -11,5 +11,5 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "packages/shared-sdk/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "packages/shared-sdk/**/*.ts"]
 }

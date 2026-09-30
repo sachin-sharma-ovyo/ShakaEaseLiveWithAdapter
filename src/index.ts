@@ -7,21 +7,24 @@
  * 3. Call Ease Live `init()` after that, so the adapter can wait on the same load.
  * 4. The adapter emits `player.ready` when the load finishes, and the overlay appears.
  */
-import type { BrandConfig } from '../packages/shared-sdk/index';
-import { applyBrandTheme } from './brand/applyBrandTheme';
-import { loadBrandConfig } from './brand/loadBrandConfig';
-import { EaseLiveComponent } from './easelive/EaseLiveComponent';
+import {
+  applyBrandTheme,
+  loadBrandConfig,
+  type BrandConfig,
+} from '../packages/shared-sdk/brand';
+import { EaseLiveComponent } from '../packages/shared-sdk/easelive';
+import './app.css';
 import { createWebPlayerPlugin } from './plugin/WebPlayerPlugin';
+import { PlayerControls } from './shaka/playercontrols';
 import { ShakaPlayer } from './shaka/ShakaPlayer';
 
 async function main(): Promise<void> {
+  const wrapper = document.querySelector<HTMLElement>('#player-wrapper');
   const video = document.querySelector<HTMLVideoElement>('#video');
-  const controls = document.querySelector<HTMLElement>('#controls');
-  const playButton = document.querySelector<HTMLButtonElement>('#play-pause');
   const status = document.querySelector<HTMLElement>('#status');
   const view = document.querySelector<HTMLElement>('#ease-live-view');
 
-  if (!video || !controls || !playButton || !status || !view) {
+  if (!wrapper || !video || !status || !view) {
     throw new Error('Player markup is missing.');
   }
 
@@ -40,13 +43,18 @@ async function main(): Promise<void> {
     status.textContent = message;
   });
 
+  const controls = new PlayerControls(player, wrapper);
+
   const easeLive = new EaseLiveComponent(
     view,
-    createWebPlayerPlugin(player, { controls, playButton }),
+    createWebPlayerPlugin(player, controls),
     brand.easeLive,
     {
       onStatus(next) {
         status.textContent = `Overlay ${next}`;
+        if (next === 'hidden' || next === 'disabled') {
+          controls.focus();
+        }
       },
       onFatal(message) {
         status.textContent = message;

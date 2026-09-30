@@ -27,7 +27,7 @@ interface ExamplePlayer {
 /**
  * Reference adapter. It is type-checked with the app and is not bundled.
  * The running Shaka adapter is `src/plugin/WebPlayerPlugin.ts`.
- * Types come from `./index`, not from `PlayerPlugin.ts`.
+ * Types come from `./index`, not from `PlayerPlugin.ts` directly.
  *
  * An adapter does two jobs:
  * 1. Listen to the overlay and drive the player (`on`, third arg `true`).

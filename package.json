@@ -2,26 +2,18 @@
   "name": "shaka-with-ease-live",
   "version": "0.1.0",
   "description": "Shaka Player with the Ease Live overlay, white-label brand config, and the shared player-plugin contract.",
-  "main": "lib/src/lib.js",
-  "module": "lib/src/lib.js",
-  "types": "lib/src/lib.d.ts",
   "exports": {
-    ".": {
-      "types": "./lib/src/lib.d.ts",
-      "default": "./lib/src/lib.js"
-    },
     "./brand-config.schema.json": "./packages/shared-sdk/brand/brand-config.schema.json"
   },
   "files": [
-    "lib",
     "packages/shared-sdk/brand/brand-config.schema.json"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "webpack --mode production",
-    "build:lib": "rm -rf lib && tsc -p tsconfig.lib.json",
-    "pack:lib": "npm run build:lib && npm pack",
     "start": "webpack serve --mode development"
   },
   "dependencies": {
@@ -29,7 +21,9 @@
     "shaka-player": "^4.16.0"
   },
   "devDependencies": {
+    "css-loader": "^7.1.5",
     "html-webpack-plugin": "^5.6.3",
+    "style-loader": "^4.0.0",
     "ts-loader": "^9.5.2",
     "typescript": "^5.9.2",
     "webpack": "^5.101.3",

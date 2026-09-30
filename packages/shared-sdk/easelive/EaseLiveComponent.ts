@@ -1,10 +1,7 @@
 import EaseLive from '@ease-live/ease-live-bridge-web';
 import type { PlayerPlugin } from '@ease-live/ease-live-bridge-web';
-import type {
-  AppStatus,
-  BrandEaseLiveConfig,
-  EaseLiveErrorPayload,
-} from '../../packages/shared-sdk/index';
+import type { BrandEaseLiveConfig } from '../brand';
+import type { AppStatus, EaseLiveErrorPayload } from '../plugininterface';
 
 interface EaseLiveHandlers {
   onStatus?: (status: AppStatus) => void;

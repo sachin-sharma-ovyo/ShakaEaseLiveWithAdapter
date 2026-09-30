@@ -1,4 +1,4 @@
-import { parseBrandConfig, type BrandConfig } from '../../packages/shared-sdk/index';
+import { parseBrandConfig, type BrandConfig } from './BrandConfig';
 
 const BRAND_ID = /^[a-zA-Z0-9_-]+$/;
 

@@ -1,4 +1,4 @@
-import type { BrandTheme } from '../../packages/shared-sdk/index';
+import type { BrandTheme } from './BrandConfig';
 
 /**
  * Writes the brand theme onto the page.

@@ -1,0 +1,40 @@
+.player-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.player-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.player-controls__play-pause {
+  height: 32px;
+  min-width: 72px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--brand-accent, #fff);
+  color: var(--brand-accent-text, #111);
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-controls__live {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}

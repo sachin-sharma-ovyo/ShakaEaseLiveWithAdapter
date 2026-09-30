@@ -1,6 +1,6 @@
 /**
  * Shared player-plugin contract used by every platform.
- * Import these types from `index.ts`. Do not import this file directly.
+ * Import these types from `plugininterface/index.ts`. Do not import this file directly.
  * The map below is the whole contract: six events, nothing else.
  */
 
