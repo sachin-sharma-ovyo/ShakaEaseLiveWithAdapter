@@ -9,6 +9,8 @@ import type {
 } from '../../packages/shared-sdk/index';
 import type { ShakaPlayer } from '../shaka/ShakaPlayer';
 
+const TIME_INTERVAL_MS = 250;
+
 interface PluginElements {
   controls: HTMLElement;
   playButton: HTMLButtonElement;
@@ -70,7 +72,7 @@ export function createWebPlayerPlugin(
       bridge.emit('player.state', { state });
     });
 
-    player.onTimeUpdate(() => {
+    const emitTime = () => {
       const payload = readTimecode(player, currentTimecode, lastPosition);
       if (!payload) {
         return;
@@ -86,7 +88,7 @@ export function createWebPlayerPlugin(
           ? {}
           : { maxTimecode: Math.floor(payload.maxTimecode) }),
       });
-    });
+    };
 
     elements.playButton.addEventListener('click', () => {
       if (player.isPaused()) {
@@ -104,6 +106,9 @@ export function createWebPlayerPlugin(
           player: player.getInstance(),
           playerContainer: player.getContainer() ?? undefined,
         });
+        // The contract requires 4Hz; `timeupdate` frequency is browser-dependent.
+        const timer = window.setInterval(emitTime, TIME_INTERVAL_MS);
+        player.onDestroy(() => window.clearInterval(timer));
       },
       () => {
         // Entry reports the load error. The overlay stays uninitialized without player.ready.

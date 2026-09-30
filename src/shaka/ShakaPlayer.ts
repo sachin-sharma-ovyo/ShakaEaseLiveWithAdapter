@@ -2,7 +2,7 @@ import shaka from 'shaka-player';
 import type { PlayerState } from '../../packages/shared-sdk/index';
 
 type StateListener = (state: PlayerState) => void;
-type TimeListener = () => void;
+type DestroyListener = () => void;
 type ErrorListener = (message: string) => void;
 
 interface BufferingEvent extends Event {
@@ -30,7 +30,7 @@ export class ShakaPlayer {
   private loadPromise: Promise<void> | null = null;
   private lastState: PlayerState | null = null;
   private readonly stateListeners = new Set<StateListener>();
-  private readonly timeListeners = new Set<TimeListener>();
+  private readonly destroyListeners = new Set<DestroyListener>();
   private readonly errorListeners = new Set<ErrorListener>();
 
   constructor(video: HTMLVideoElement) {
@@ -106,15 +106,17 @@ export class ShakaPlayer {
     this.stateListeners.add(listener);
   }
 
-  onTimeUpdate(listener: TimeListener): void {
-    this.timeListeners.add(listener);
-  }
-
   onError(listener: ErrorListener): void {
     this.errorListeners.add(listener);
   }
 
+  onDestroy(listener: DestroyListener): void {
+    this.destroyListeners.add(listener);
+  }
+
   destroy(): Promise<void> {
+    this.destroyListeners.forEach((listener) => listener());
+    this.destroyListeners.clear();
     return this.player.destroy();
   }
 
@@ -142,9 +144,6 @@ export class ShakaPlayer {
     this.video.addEventListener('seeking', () => this.emitState('seeking'));
     this.video.addEventListener('seeked', () => {
       this.emitState(this.video.paused ? 'paused' : 'playing');
-    });
-    this.video.addEventListener('timeupdate', () => {
-      this.timeListeners.forEach((listener) => listener());
     });
   }
 

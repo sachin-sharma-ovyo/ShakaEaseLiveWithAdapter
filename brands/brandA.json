@@ -1,0 +1,19 @@
+{
+  "$schema": "../packages/shared-sdk/brand/brand-config.schema.json",
+  "brandId": "brandA",
+  "theme": {
+    "name": "Brand A Live",
+    "backgroundColor": "#0b1d3a",
+    "textColor": "#eef3ff",
+    "accentColor": "#ffb400",
+    "accentTextColor": "#0b1d3a",
+    "fontFamily": "Georgia, serif"
+  },
+  "easeLive": {
+    "accountId": "tutorials",
+    "projectId": "0346ae3e-7a91-4760-bcd3-cd84bb6790dd",
+    "programId": "2d2711ff-6ff2-41c1-a141-060e9ffa2c38",
+    "env": "prod"
+  },
+  "streamUrl": "https://stream-akamai.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8"
+}
