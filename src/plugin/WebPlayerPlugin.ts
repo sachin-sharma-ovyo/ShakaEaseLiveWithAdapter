@@ -25,6 +25,7 @@ export function createWebPlayerPlugin(
     // Last Unix timecode and the video position it belonged to, used to seek and to interpolate.
     let currentTimecode = 0;
     let lastPosition = 0;
+    let playbackStarted = false;
 
     // Overlay -> Shaka. `fromSdkOnly` avoids reacting to our own emits.
     bridge.on(
@@ -42,10 +43,16 @@ export function createWebPlayerPlugin(
     bridge.on(
       'player.time',
       ({ timecode }) => {
-        if (currentTimecode > 0) {
-          const diffSeconds = (timecode - currentTimecode) / 1000;
-          player.seekBy(diffSeconds);
+        // Ignore the overlay's first sync. Seeking before the first frame
+        // drops the segment just buffered and adds a 1–2s startup stall.
+        if (!playbackStarted || currentTimecode <= 0) {
+          return;
         }
+        const diffSeconds = (timecode - currentTimecode) / 1000;
+        if (Math.abs(diffSeconds) < 0.75) {
+          return;
+        }
+        player.seekBy(diffSeconds);
       },
       true,
     );
@@ -70,6 +77,9 @@ export function createWebPlayerPlugin(
 
     // Shaka -> overlay.
     player.onPlaybackState((state) => {
+      if (state === 'playing') {
+        playbackStarted = true;
+      }
       bridge.emit('player.state', { state });
     });
 

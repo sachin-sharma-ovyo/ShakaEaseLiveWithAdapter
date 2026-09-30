@@ -43,6 +43,9 @@ async function main(): Promise<void> {
     status.textContent = message;
   });
 
+  // Start the manifest fetch before the overlay is created so the first
+  // segment can be buffered before the user clicks Play.
+  const loadPromise = player.load(brand.streamUrl);
   const controls = new PlayerControls(player, wrapper);
 
   const easeLive = new EaseLiveComponent(
@@ -62,8 +65,6 @@ async function main(): Promise<void> {
     },
   );
 
-  // Start the load before init so `whenReady()` already has a promise when the plugin runs.
-  const loadPromise = player.load(brand.streamUrl);
   easeLive.init();
 
   try {

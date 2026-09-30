@@ -44,7 +44,18 @@ export class ShakaPlayer {
     // Native controls paint a full-video click layer. Ease Live needs that surface.
     this.video.controls = false;
     this.video.removeAttribute('controls');
+    this.video.preload = 'auto';
     this.player = new shaka.Player();
+    // First play was waiting 1–2s. The default live start sits 5s inside the
+    // window and may fetch the previous segment when close to a boundary.
+    // A short offset starts on the segment already in hand.
+    this.player.configure({
+      streaming: {
+        rebufferingGoal: 0,
+        safeSeekOffset: 1,
+        inaccurateManifestTolerance: 0,
+      },
+    });
     this.bindVideoEvents();
     this.bindPlayerEvents();
   }
@@ -64,7 +75,19 @@ export class ShakaPlayer {
   }
 
   play(): Promise<void> {
-    return this.video.play();
+    // Call play() in the click turn so the browser accepts the gesture.
+    // If the media source is not attached yet, retry once the load finishes.
+    const started = this.video.play();
+    if (!this.loadPromise) {
+      return started;
+    }
+    return started.catch(async () => {
+      await this.loadPromise;
+      if (!this.video.paused) {
+        return;
+      }
+      await this.video.play();
+    });
   }
 
   pause(): void {

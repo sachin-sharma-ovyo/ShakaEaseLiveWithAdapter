@@ -61,8 +61,9 @@ export class PlayerControls {
   };
 
   private render(state: PlayerState): void {
-    const playing = state === 'playing' || state === 'buffering';
-    this.playButton.textContent = playing ? 'Pause' : 'Play';
-    this.playButton.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    // Initial load buffers while the video is still paused. That is not playback.
+    const showPause = !this.player.isPaused() && state !== 'paused' && state !== 'stopped';
+    this.playButton.textContent = showPause ? 'Pause' : 'Play';
+    this.playButton.setAttribute('aria-label', showPause ? 'Pause' : 'Play');
   }
 }
