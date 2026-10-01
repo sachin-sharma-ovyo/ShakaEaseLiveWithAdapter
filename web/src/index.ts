@@ -11,8 +11,8 @@ import {
   applyBrandTheme,
   loadBrandConfig,
   type BrandConfig,
-} from '../packages/shared-sdk/brand';
-import { EaseLiveComponent } from '../packages/shared-sdk/easelive';
+} from '../../shared/brand';
+import { EaseLiveComponent } from '../../shared/easelive';
 import './app.css';
 import { createWebPlayerPlugin } from './plugin/WebPlayerPlugin';
 import { PlayerControls } from './shaka/playercontrols';

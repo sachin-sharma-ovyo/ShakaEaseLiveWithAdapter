@@ -1,4 +1,4 @@
-import type { PlayerState } from '../../../packages/shared-sdk/plugininterface';
+import type { PlayerState } from '../../../../shared/plugininterface';
 import type { ShakaPlayer } from '../ShakaPlayer';
 import './PlayerControls.css';
 

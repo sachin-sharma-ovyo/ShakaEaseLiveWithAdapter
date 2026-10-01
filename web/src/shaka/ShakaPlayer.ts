@@ -1,5 +1,5 @@
 import shaka from 'shaka-player';
-import type { PlayerState } from '../../packages/shared-sdk/plugininterface';
+import type { PlayerState } from '../../../shared/plugininterface';
 
 type StateListener = (state: PlayerState) => void;
 type DestroyListener = () => void;

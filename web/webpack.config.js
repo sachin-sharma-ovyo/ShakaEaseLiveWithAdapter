@@ -13,7 +13,7 @@ function copyBrandConfigs(compiler) {
         stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
       },
       () => {
-        const brandsDir = path.resolve(__dirname, 'brands');
+        const brandsDir = path.resolve(__dirname, '../brands');
         for (const file of fs.readdirSync(brandsDir)) {
           if (!file.endsWith('.json')) {
             continue;
@@ -26,7 +26,7 @@ function copyBrandConfigs(compiler) {
   });
 }
 
-// Bundles the web app only. packages/shared-sdk is type-checked by `tsc`, not emitted here.
+// Bundles the web app only. ../shared is type-checked by `tsc`, not emitted here.
 module.exports = {
   entry: './src/index.ts',
   output: {

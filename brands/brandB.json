@@ -1,5 +1,5 @@
 {
-  "$schema": "../packages/shared-sdk/brand/brand-config.schema.json",
+  "$schema": "../shared/brand/brand-config.schema.json",
   "brandId": "brandB",
   "theme": {
     "name": "Brand B Sports",

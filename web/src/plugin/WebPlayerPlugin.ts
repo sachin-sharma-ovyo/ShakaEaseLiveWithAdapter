@@ -5,7 +5,7 @@ import type {
   PlayerPluginBridge,
   PlayerPluginEvents,
   PlayerTimePayload,
-} from '../../packages/shared-sdk/plugininterface';
+} from '../../../shared/plugininterface';
 import type { PlayerControls } from '../shaka/playercontrols';
 import type { ShakaPlayer } from '../shaka/ShakaPlayer';
 
@@ -13,8 +13,8 @@ const TIME_INTERVAL_MS = 250;
 
 /**
  * Adapter between Shaka and Ease Live. This is the only app file that knows both.
- * Event names and payloads come from `packages/shared-sdk/plugininterface/index.ts`.
- * Follow `packages/shared-sdk/plugininterface/WebPlayerPlugin.example.ts` when changing the flow.
+ * Event names and payloads come from `shared/plugininterface/index.ts`.
+ * Follow `shared/plugininterface/WebPlayerPlugin.example.ts` when changing the flow.
  */
 export function createWebPlayerPlugin(
   player: ShakaPlayer,
