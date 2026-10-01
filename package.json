@@ -5,9 +5,15 @@
     "shared",
     "web"
   ],
+  "engines": {
+    "node": ">=18.12"
+  },
   "scripts": {
     "start": "npm start -w web",
     "build": "npm run build -w web",
-    "typecheck": "npm run typecheck -w web"
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
   }
 }

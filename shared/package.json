@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Brand config, Ease Live bridge, and the player-plugin contract shared by web and TV.",
+  "sideEffects": false,
+  "exports": {
+    "./brand": "./brand/index.ts",
+    "./brand/brand-config.schema.json": "./brand/brand-config.schema.json",
+    "./easelive": "./easelive/index.ts",
+    "./plugininterface": "./plugininterface/index.ts"
+  },
   "dependencies": {
     "@ease-live/ease-live-bridge-web": "1.22.0"
   }
