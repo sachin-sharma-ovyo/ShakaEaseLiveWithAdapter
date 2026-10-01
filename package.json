@@ -2,6 +2,7 @@
   "name": "shaka-ease-live",
   "private": true,
   "workspaces": [
+    "shared",
     "web"
   ],
   "scripts": {

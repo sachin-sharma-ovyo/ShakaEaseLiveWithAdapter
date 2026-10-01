@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ease-live/ease-live-bridge-web": "1.22.0",
+    "shaka-ease-live-shared": "*",
     "shaka-player": "^4.16.0"
   },
   "devDependencies": {
