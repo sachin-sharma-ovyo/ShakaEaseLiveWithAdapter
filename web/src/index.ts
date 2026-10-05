@@ -15,7 +15,8 @@ import {
 import { EaseLiveComponent } from '../../shared/easelive';
 import './app.css';
 import { createWebPlayerPlugin } from './plugin/WebPlayerPlugin';
-import { PlayerControls } from './shaka/playercontrols';
+// Custom controls are disabled in favour of the Shaka UI controls mounted by ShakaPlayer.
+// import { PlayerControls } from './shaka/playercontrols';
 import { ShakaPlayer } from './shaka/ShakaPlayer';
 
 async function main(): Promise<void> {
@@ -46,18 +47,18 @@ async function main(): Promise<void> {
   // Start the manifest fetch before the overlay is created so the first
   // segment can be buffered before the user clicks Play.
   const loadPromise = player.load(brand.streamUrl);
-  const controls = new PlayerControls(player, wrapper);
+  // const controls = new PlayerControls(player, wrapper);
 
   const easeLive = new EaseLiveComponent(
     view,
-    createWebPlayerPlugin(player, controls),
+    createWebPlayerPlugin(player),
     brand.easeLive,
     {
       onStatus(next) {
         status.textContent = `Overlay ${next}`;
-        if (next === 'hidden' || next === 'disabled') {
-          controls.focus();
-        }
+        // if (next === 'hidden' || next === 'disabled') {
+        //   controls.focus();
+        // }
       },
       onFatal(message) {
         status.textContent = message;

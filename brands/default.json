@@ -10,9 +10,9 @@
     "fontFamily": "sans-serif"
   },
   "easeLive": {
-    "accountId": "tutorials",
-    "projectId": "0346ae3e-7a91-4760-bcd3-cd84bb6790dd",
-    "programId": "2d2711ff-6ff2-41c1-a141-060e9ffa2c38",
+    "accountId": "autotests",
+    "projectId": "5b07b1ee-62cb-4c06-9fe5-fc98d4b3a1f0",
+    "programId": "ease-live-ui-test-1",
     "env": "prod"
   },
   "streamUrl": "https://stream-akamai.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8"

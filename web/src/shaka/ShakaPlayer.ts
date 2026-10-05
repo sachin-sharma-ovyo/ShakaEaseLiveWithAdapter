@@ -1,9 +1,20 @@
-import shaka from 'shaka-player';
+import shaka from 'shaka-player/dist/shaka-player.ui';
+import 'shaka-player/dist/controls.css';
 import type { PlayerState } from '../../../shared/plugininterface';
 
 type StateListener = (state: PlayerState) => void;
 type DestroyListener = () => void;
 type ErrorListener = (message: string) => void;
+type ControlsListener = (visible: boolean) => void;
+
+/** Ease Live `player.videoscale` payload. Every value except `duration` is 0–1. */
+export interface VideoScale {
+  scaleX: number;
+  scaleY: number;
+  pivotX: number;
+  pivotY: number;
+  duration: number;
+}
 
 interface BufferingEvent extends Event {
   buffering: boolean;
@@ -18,9 +29,8 @@ interface PlayerErrorEvent extends Event {
 
 /**
  * Shaka playback wrapper. The adapter is the only class that talks to Ease Live.
- * Shaka UI is not mounted. Its control layer covers the video and toggles playback
- * on any click, which blocks the Ease Live overlay.
- * Play and pause live in the 48px bar in `index.html`, above the overlay.
+ * Shaka UI is mounted on the video's parent. `app.css` lets only its bottom bar
+ * take clicks, so the rest of the video surface stays with the Ease Live overlay.
  *
  * `getPlayheadDate()` is the Unix time source for `player.time` when the manifest
  * has `EXT-X-PROGRAM-DATE-TIME`. The adapter interpolates when that date is missing.
@@ -28,6 +38,7 @@ interface PlayerErrorEvent extends Event {
 export class ShakaPlayer {
   private readonly video: HTMLVideoElement;
   private readonly player: shaka.Player;
+  private readonly ui: shaka.ui.Overlay;
   private loadPromise: Promise<void> | null = null;
   private lastState: PlayerState | null = null;
   private readonly stateListeners = new Set<StateListener>();
@@ -56,6 +67,15 @@ export class ShakaPlayer {
         inaccurateManifestTolerance: 0,
       },
     });
+
+    const container = video.parentElement;
+    if (!container) {
+      throw new Error('The video element needs a parent for the Shaka UI.');
+    }
+    this.ui = new shaka.ui.Overlay(this.player, container, video);
+    // The big play button sits in the middle of the video, where the overlay needs clicks.
+    this.ui.configure({ addBigPlayButton: false });
+
     this.bindVideoEvents();
     this.bindPlayerEvents();
   }
@@ -129,6 +149,37 @@ export class ShakaPlayer {
     return this.video.parentElement;
   }
 
+  /**
+   * Scales the video surface around the pivot, so `scaleX: 0.8, pivotX: 0`
+   * keeps the left edge and frees the right 20% for the overlay.
+   */
+  setVideoScale({ scaleX, scaleY, pivotX, pivotY, duration }: VideoScale): void {
+    const style = this.video.style;
+    style.transformOrigin = `${pivotX * 100}% ${pivotY * 100}%`;
+    style.transition = `transform ${Number.isFinite(duration) ? Math.max(0, duration) : 0}ms ease`;
+    style.transform = scaleX === 1 && scaleY === 1 ? '' : `scale(${scaleX}, ${scaleY})`;
+  }
+
+  areControlsVisible(): boolean {
+    return this.ui.getControls()?.isOpaque() ?? false;
+  }
+
+  /** Shaka fades the controls out again after its idle timeout. */
+  setControlsVisible(visible: boolean): void {
+    const controls = this.ui.getControls();
+    if (visible) {
+      controls?.showUI();
+    } else {
+      controls?.hideUI();
+    }
+  }
+
+  onControlsVisibility(listener: ControlsListener): void {
+    const controls = this.ui.getControls();
+    controls?.addEventListener('showingui', () => listener(true));
+    controls?.addEventListener('hidingui', () => listener(false));
+  }
+
   onPlaybackState(listener: StateListener): void {
     this.stateListeners.add(listener);
   }
@@ -144,7 +195,8 @@ export class ShakaPlayer {
   destroy(): Promise<void> {
     this.destroyListeners.forEach((listener) => listener());
     this.destroyListeners.clear();
-    return this.player.destroy();
+    // Also destroys the Shaka Player instance.
+    return this.ui.destroy();
   }
 
   private async start(url: string): Promise<void> {

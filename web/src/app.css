@@ -40,6 +40,19 @@ h1 {
   z-index: 1;
 }
 
+/* Shaka UI covers the whole video. Only the visible bottom bar and its menus
+   may take clicks; everything else must reach the Ease Live overlay. */
+#player-wrapper .shaka-controls-container {
+  z-index: 2;
+  pointer-events: none;
+}
+
+#player-wrapper .shaka-controls-container[shown='true'] .shaka-bottom-controls,
+#player-wrapper .shaka-settings-menu,
+#player-wrapper .shaka-overflow-menu {
+  pointer-events: auto;
+}
+
 #status {
   margin-top: 12px;
   min-height: 1.2em;

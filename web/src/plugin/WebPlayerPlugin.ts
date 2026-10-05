@@ -6,20 +6,18 @@ import type {
   PlayerPluginEvents,
   PlayerTimePayload,
 } from '../../../shared/plugininterface';
-import type { PlayerControls } from '../shaka/playercontrols';
+// import type { PlayerControls } from '../shaka/playercontrols';
 import type { ShakaPlayer } from '../shaka/ShakaPlayer';
 
 const TIME_INTERVAL_MS = 250;
+const SCALED_VIDEO_SIZE = 0.8;
 
 /**
  * Adapter between Shaka and Ease Live. This is the only app file that knows both.
  * Event names and payloads come from `shared/plugininterface/index.ts`.
  * Follow `shared/plugininterface/WebPlayerPlugin.example.ts` when changing the flow.
  */
-export function createWebPlayerPlugin(
-  player: ShakaPlayer,
-  controls: PlayerControls,
-): EaseLivePlayerPlugin {
+export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin {
   return (easeLive) => {
     const bridge = toBridge(easeLive);
     // Last Unix timecode and the video position it belonged to, used to seek and to interpolate.
@@ -57,12 +55,12 @@ export function createWebPlayerPlugin(
       true,
     );
 
-    // Overlay background clicks toggle the bar. They are not part of the shared contract.
-    // `view.mouseenter` shows it again. The bar stays 48px so the overlay keeps the video.
+    // Overlay background clicks toggle the Shaka UI bar. They are not part of the shared contract.
+    // `view.mouseenter` shows it again. Only the bar takes clicks, so the overlay keeps the video.
     easeLive.on(
       'stage.clicked',
       () => {
-        setControlsVisible(controls, !controls.isVisible(), bridge);
+        player.setControlsVisible(!player.areControlsVisible());
       },
       true,
     );
@@ -70,7 +68,25 @@ export function createWebPlayerPlugin(
     easeLive.on(
       'view.mouseenter',
       () => {
-        setControlsVisible(controls, true, bridge);
+        player.setControlsVisible(true);
+      },
+      true,
+    );
+
+    // Overlay moves and resizes the video surface. Not part of the shared contract.
+    // The pivot picks the corner or edge; a shrunk axis always leaves 20% free.
+    easeLive.on(
+      'player.videoscale',
+      ({ scaleX, scaleY, pivotX, pivotY, duration }) => {
+        const applied = {
+          scaleX: scaleX < 1 ? SCALED_VIDEO_SIZE : 1,
+          scaleY: scaleY < 1 ? SCALED_VIDEO_SIZE : 1,
+          pivotX,
+          pivotY,
+          duration,
+        };
+        player.setVideoScale(applied);
+        easeLive.emit('player.videoscale', applied);
       },
       true,
     );
@@ -101,7 +117,8 @@ export function createWebPlayerPlugin(
       });
     };
 
-    setControlsVisible(controls, controls.isVisible(), bridge);
+    emitControls(player.areControlsVisible(), bridge);
+    player.onControlsVisibility((visible) => emitControls(visible, bridge));
 
     player.whenReady().then(
       () => {
@@ -189,12 +206,7 @@ function readTimecode(
   };
 }
 
-function setControlsVisible(
-  controls: PlayerControls,
-  visible: boolean,
-  bridge: PlayerPluginBridge,
-): void {
-  controls.setVisible(visible);
+function emitControls(visible: boolean, bridge: PlayerPluginBridge): void {
   const visibility: ControlsVisibility = visible ? 'visible' : 'hidden';
   bridge.emit('player.controls', { controls: visibility });
 }
