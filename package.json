@@ -1,19 +1,13 @@
 {
   "name": "shaka-ease-live",
   "private": true,
-  "workspaces": [
-    "shared",
-    "web"
-  ],
   "engines": {
     "node": ">=18.12"
   },
   "scripts": {
-    "start": "npm start -w web",
-    "build": "npm run build -w web",
-    "typecheck": "npm run typecheck --workspaces --if-present"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.2"
+    "install:deps": "npm install --prefix shared && npm install --prefix web",
+    "start": "npm start --prefix web",
+    "build": "npm run build --prefix web",
+    "typecheck": "npm run typecheck --prefix web"
   }
 }

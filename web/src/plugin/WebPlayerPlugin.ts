@@ -1,5 +1,4 @@
-import type EaseLive from '@ease-live/ease-live-bridge-web';
-import type { PlayerPlugin as EaseLivePlayerPlugin } from '@ease-live/ease-live-bridge-web';
+import type { EaseLive, EaseLivePlayerPlugin } from '../../../shared/easelive';
 import type {
   ControlsVisibility,
   PlayerPluginBridge,
