@@ -7,6 +7,28 @@ type DestroyListener = () => void;
 type ErrorListener = (message: string) => void;
 type ControlsListener = (visible: boolean) => void;
 
+const TRANSPORT_KEYS = new Set([
+  ' ',
+  'Spacebar',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  'MediaPlay',
+  'MediaPause',
+  'MediaStop',
+  'MediaFastForward',
+  'MediaRewind',
+  'MediaPlayPause',
+]);
+
+/** Samsung TV media keys. Enter is left alone so an ad skip control can take it. */
+const TRANSPORT_KEY_CODES = new Set([415, 19, 413, 417, 412, 10252]);
+
 /** Ease Live `player.videoscale` payload. Every value except `duration` is 0–1. */
 export interface VideoScale {
   scaleX: number;
@@ -41,6 +63,8 @@ export class ShakaPlayer {
   private readonly ui: shaka.ui.Overlay;
   private loadPromise: Promise<void> | null = null;
   private lastState: PlayerState | null = null;
+  private transportLocked = false;
+  private controlsWereVisible = false;
   private readonly stateListeners = new Set<StateListener>();
   private readonly destroyListeners = new Set<DestroyListener>();
   private readonly errorListeners = new Set<ErrorListener>();
@@ -78,6 +102,7 @@ export class ShakaPlayer {
 
     this.bindVideoEvents();
     this.bindPlayerEvents();
+    window.addEventListener('keydown', this.onTransportKeyDown, true);
   }
 
   load(url: string): Promise<void> {
@@ -95,6 +120,9 @@ export class ShakaPlayer {
   }
 
   play(): Promise<void> {
+    if (this.transportLocked) {
+      return Promise.resolve();
+    }
     // Call play() in the click turn so the browser accepts the gesture.
     // If the media source is not attached yet, retry once the load finishes.
     const started = this.video.play();
@@ -111,10 +139,16 @@ export class ShakaPlayer {
   }
 
   pause(): void {
+    if (this.transportLocked) {
+      return;
+    }
     this.video.pause();
   }
 
   seekBy(seconds: number): void {
+    if (this.transportLocked) {
+      return;
+    }
     const range = this.player.seekRange();
     const next = this.video.currentTime + seconds;
     const clamped = Math.min(range.end, Math.max(range.start, next));
@@ -135,6 +169,36 @@ export class ShakaPlayer {
 
   isPaused(): boolean {
     return this.video.paused;
+  }
+
+  hasEnded(): boolean {
+    return this.video.ended;
+  }
+
+  /**
+   * Blocks content transport while a linear ad owns the surface.
+   * IMA's own controls stay in `#ad-container` and are not part of this lock.
+   */
+  setTransportLocked(locked: boolean): void {
+    if (locked === this.transportLocked) {
+      return;
+    }
+    this.transportLocked = locked;
+    const controls = this.ui.getControls();
+    if (locked) {
+      this.controlsWereVisible = this.areControlsVisible();
+      controls?.setEnabledShakaControls(false);
+      this.ui.configure({ enableKeyboardPlaybackControls: false });
+      this.getContainer()?.classList.add('ad-break');
+      controls?.hideUI();
+      return;
+    }
+    controls?.setEnabledShakaControls(true);
+    this.ui.configure({ enableKeyboardPlaybackControls: true });
+    this.getContainer()?.classList.remove('ad-break');
+    if (this.controlsWereVisible) {
+      controls?.showUI();
+    }
   }
 
   isLive(): boolean {
@@ -193,6 +257,7 @@ export class ShakaPlayer {
   }
 
   destroy(): Promise<void> {
+    window.removeEventListener('keydown', this.onTransportKeyDown, true);
     this.destroyListeners.forEach((listener) => listener());
     this.destroyListeners.clear();
     // Also destroys the Shaka Player instance.
@@ -203,6 +268,18 @@ export class ShakaPlayer {
     await this.player.attach(this.video);
     await this.player.load(url);
   }
+
+  private readonly onTransportKeyDown = (event: KeyboardEvent): void => {
+    if (!this.transportLocked || !isTransportKey(event)) {
+      return;
+    }
+    const adContainer = this.getContainer()?.querySelector('#ad-container');
+    if (adContainer && event.target instanceof Node && adContainer.contains(event.target)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   private emitState(state: PlayerState): void {
     if (state === this.lastState) {
@@ -242,4 +319,8 @@ export class ShakaPlayer {
       this.errorListeners.forEach((listener) => listener(message));
     });
   }
+}
+
+function isTransportKey(event: KeyboardEvent): boolean {
+  return TRANSPORT_KEYS.has(event.key) || TRANSPORT_KEY_CODES.has(event.keyCode);
 }

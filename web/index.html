@@ -4,17 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Shaka with Ease Live</title>
+    <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
   </head>
   <body>
     <main>
       <h1 id="brand-name">Shaka with Ease Live</h1>
       <!--
-        Stacking from the Ease Live 1.22 guide:
-        video (z-index 0), overlay (z-index 1), Shaka UI controls (z-index 2).
+        Stacking: video (z-index 0), ad container (z-index 1),
+        Ease Live overlay (z-index 2), Shaka UI controls (z-index 3).
         ShakaPlayer mounts the Shaka UI into #player-wrapper at startup.
       -->
       <div id="player-wrapper">
         <video id="video" playsinline></video>
+        <div id="ad-container"></div>
         <div id="ease-live-view"></div>
       </div>
       <p id="status">Loading stream…</p>

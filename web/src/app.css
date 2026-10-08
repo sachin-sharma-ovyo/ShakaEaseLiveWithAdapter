@@ -25,6 +25,7 @@ h1 {
 }
 
 #video,
+#ad-container,
 #ease-live-view {
   position: absolute;
   inset: 0;
@@ -36,14 +37,29 @@ h1 {
   z-index: 0;
 }
 
-#ease-live-view {
+#ad-container {
   z-index: 1;
+  pointer-events: none;
+}
+
+#player-wrapper.ad-break #ad-container,
+#ad-container[ad-active='true'] {
+  pointer-events: auto;
+}
+
+#ease-live-view {
+  z-index: 2;
+}
+
+#ease-live-view.ad-break {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Shaka UI covers the whole video. Only the visible bottom bar and its menus
    may take clicks; everything else must reach the Ease Live overlay. */
 #player-wrapper .shaka-controls-container {
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
 }
 
@@ -51,6 +67,14 @@ h1 {
 #player-wrapper .shaka-settings-menu,
 #player-wrapper .shaka-overflow-menu {
   pointer-events: auto;
+}
+
+#player-wrapper.ad-break .shaka-controls-container,
+#player-wrapper.ad-break .shaka-controls-container[shown='true'] .shaka-bottom-controls,
+#player-wrapper.ad-break .shaka-settings-menu,
+#player-wrapper.ad-break .shaka-overflow-menu {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 #status {

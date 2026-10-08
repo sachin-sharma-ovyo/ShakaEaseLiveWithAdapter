@@ -2,6 +2,7 @@
  * Public entry for white-label brand settings.
  * Import brand types, parsing, loading, and theme application from here.
  */
+export type { AdTagConfig, AdsConfig, MidRollConfig } from './AdsConfig';
 export type {
   BrandConfig,
   BrandEaseLiveConfig,

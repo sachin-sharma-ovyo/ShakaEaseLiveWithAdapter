@@ -5,6 +5,7 @@ import type {
   PlayerPluginEvents,
   PlayerTimePayload,
 } from '../../../shared/plugininterface';
+import type { AdController } from '../ads/AdController';
 // import type { PlayerControls } from '../shaka/playercontrols';
 import type { ShakaPlayer } from '../shaka/ShakaPlayer';
 
@@ -16,7 +17,11 @@ const SCALED_VIDEO_SIZE = 0.8;
  * Event names and payloads come from `shared/plugininterface/index.ts`.
  * Follow `shared/plugininterface/WebPlayerPlugin.example.ts` when changing the flow.
  */
-export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin {
+export function createWebPlayerPlugin(
+  player: ShakaPlayer,
+  overlay: HTMLElement,
+  ads: AdController | null = null,
+): EaseLivePlayerPlugin {
   return (easeLive) => {
     const bridge = toBridge(easeLive);
     // Last Unix timecode and the video position it belonged to, used to seek and to interpolate.
@@ -28,6 +33,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     bridge.on(
       'player.state',
       ({ state }) => {
+        if (ads?.isAdPlaying) {
+          return;
+        }
         if (state === 'playing') {
           void player.play();
         } else if (state === 'paused') {
@@ -40,6 +48,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     bridge.on(
       'player.time',
       ({ timecode }) => {
+        if (ads?.isAdPlaying) {
+          return;
+        }
         // Ignore the overlay's first sync. Seeking before the first frame
         // drops the segment just buffered and adds a 1–2s startup stall.
         if (!playbackStarted || currentTimecode <= 0) {
@@ -59,6 +70,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     easeLive.on(
       'stage.clicked',
       () => {
+        if (ads?.isAdPlaying) {
+          return;
+        }
         player.setControlsVisible(!player.areControlsVisible());
       },
       true,
@@ -67,6 +81,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     easeLive.on(
       'view.mouseenter',
       () => {
+        if (ads?.isAdPlaying) {
+          return;
+        }
         player.setControlsVisible(true);
       },
       true,
@@ -92,6 +109,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
 
     // Shaka -> overlay.
     player.onPlaybackState((state) => {
+      if (ads?.isAdPlaying) {
+        return;
+      }
       if (state === 'playing') {
         playbackStarted = true;
       }
@@ -99,6 +119,9 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     });
 
     const emitTime = () => {
+      if (ads?.isAdPlaying) {
+        return;
+      }
       const payload = readTimecode(player, currentTimecode, lastPosition);
       if (!payload) {
         return;
@@ -117,7 +140,35 @@ export function createWebPlayerPlugin(player: ShakaPlayer): EaseLivePlayerPlugin
     };
 
     emitControls(player.areControlsVisible(), bridge);
-    player.onControlsVisibility((visible) => emitControls(visible, bridge));
+    player.onControlsVisibility((visible) => {
+      if (ads?.isAdPlaying) {
+        bridge.emit('player.controls', { controls: 'hidden' });
+        return;
+      }
+      emitControls(visible, bridge);
+    });
+
+    ads?.onChange((state) => {
+      if (state.active) {
+        bridge.emit('player.state', { state: state.phase === 'loading' ? 'buffering' : 'paused' });
+        bridge.emit('player.controls', { controls: 'hidden' });
+        overlay.classList.add('ad-break');
+        return;
+      }
+      overlay.classList.remove('ad-break');
+      // Snap the interpolation base to the restored content position before
+      // the interval runs, so the ad's duration is not added to the timecode.
+      if (!player.getPlayheadDate()) {
+        lastPosition = player.getCurrentTime();
+      }
+      emitTime();
+      const nextState = player.hasEnded() ? 'stopped' : 'playing';
+      if (nextState === 'playing') {
+        playbackStarted = true;
+      }
+      bridge.emit('player.state', { state: nextState });
+      emitControls(player.areControlsVisible(), bridge);
+    });
 
     player.whenReady().then(
       () => {

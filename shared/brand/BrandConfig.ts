@@ -4,6 +4,8 @@
  * `brand-config.schema.json` is the same shape, for editors and validation.
  */
 
+import { parseAdsConfig, type AdsConfig } from './AdsConfig';
+
 export const BRAND_ENVIRONMENTS = ['prod', 'staging', 'dev'] as const;
 
 export type BrandEnvironment = (typeof BRAND_ENVIRONMENTS)[number];
@@ -36,6 +38,8 @@ export interface BrandConfig {
   theme: BrandTheme;
   easeLive: BrandEaseLiveConfig;
   streamUrl: string;
+  /** Omitted when the brand file has no ads block. */
+  ads?: AdsConfig;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -85,6 +89,8 @@ export function parseBrandConfig(input: unknown): BrandConfig {
     throw new Error('BrandConfig.easeLive.projectId must be a non-empty string when set.');
   }
 
+  const ads = parseAdsConfig(input.ads);
+
   const streamUrl = requiredString(input, 'streamUrl', 'streamUrl');
   let parsedStream: URL;
   try {
@@ -113,5 +119,6 @@ export function parseBrandConfig(input: unknown): BrandConfig {
       ...(env !== undefined && typeof env === 'string' ? { env } : {}),
     },
     streamUrl,
+    ...(ads ? { ads } : {}),
   };
 }

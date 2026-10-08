@@ -15,5 +15,5 @@
     "programId": "ease-live-ui-test-1",
     "env": "prod"
   },
-  "streamUrl": "https://stream-akamai.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8"
+  "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
 }

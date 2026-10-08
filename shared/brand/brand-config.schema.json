@@ -81,6 +81,60 @@
       "type": "string",
       "format": "uri",
       "description": "Per-tenant backend stream URL. Point this at the brand's HLS or DASH playback endpoint."
+    },
+    "ads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "description": "Optional client-side VAST schedule. Omit the block, or set enabled to false, to leave playback unchanged.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "adTimeoutMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long to wait for an ad to start before continuing content. Required when enabled is true."
+        },
+        "preRoll": {
+          "$ref": "#/$defs/adTag"
+        },
+        "midRoll": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offsetsSec", "tagUrl"],
+          "properties": {
+            "offsetsSec": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "Content times, in seconds, at which one mid-roll may start."
+            },
+            "tagUrl": {
+              "type": "string",
+              "format": "uri",
+              "minLength": 1
+            }
+          }
+        },
+        "postRoll": {
+          "$ref": "#/$defs/adTag"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "adTag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tagUrl"],
+      "properties": {
+        "tagUrl": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1,
+          "description": "Single VAST tag. A fresh correlator is appended on each request."
+        }
+      }
     }
   }
 }
