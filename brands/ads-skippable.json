@@ -1,0 +1,33 @@
+{
+  "$schema": "../shared/brand/brand-config.schema.json",
+  "brandId": "ads-skippable",
+  "theme": {
+    "name": "Shaka with Ease Live — Skippable ads",
+    "backgroundColor": "#111111",
+    "textColor": "#f5f5f5",
+    "accentColor": "#ffffff",
+    "accentTextColor": "#111111",
+    "fontFamily": "sans-serif"
+  },
+  "easeLive": {
+    "accountId": "autotests",
+    "projectId": "5b07b1ee-62cb-4c06-9fe5-fc98d4b3a1f0",
+    "programId": "ease-live-ui-test-1",
+    "env": "prod"
+  },
+  "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+  "ads": {
+    "enabled": true,
+    "adTimeoutMs": 8000,
+    "preRoll": {
+      "tagUrl": "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator="
+    },
+    "midRoll": {
+      "offsetsSec": [ 30,70, 90],
+      "tagUrl": "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator="
+    },
+    "postRoll": {
+      "tagUrl": "https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_preroll_skippable&sz=640x480&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator="
+    }
+  }
+}

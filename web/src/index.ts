@@ -51,9 +51,17 @@ async function main(): Promise<void> {
 
   const ads = brand.ads?.enabled ? new AdController(player.getInstance(), brand.ads) : null;
   if (ads) {
+    player.setAdBreakMarkers({
+      hasPreRoll: Boolean(brand.ads?.preRoll),
+      midRollOffsetsSec: brand.ads?.midRoll?.offsetsSec ?? [],
+      hasPostRoll: Boolean(brand.ads?.postRoll),
+    });
     ads.onChange((state) => {
       player.setTransportLocked(state.active);
       view.classList.toggle('ad-break', state.active);
+    });
+    ads.onWatched((position) => {
+      player.markAdBreakWatched(position);
     });
   }
 
@@ -95,7 +103,7 @@ async function main(): Promise<void> {
   const imaReady = await waitForStartGesture(wrapper, () => ads.tryInit(adContainer, video));
   if (imaReady && brand.ads?.preRoll) {
     status.textContent = 'Advertisement';
-    await ads.playBreak(brand.ads.preRoll.tagUrl);
+    await ads.playBreak(brand.ads.preRoll.tagUrl, { kind: 'pre' });
   }
 
   status.textContent = 'Loading stream…';

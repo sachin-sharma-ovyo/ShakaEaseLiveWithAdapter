@@ -6,7 +6,13 @@ export interface AdBreakState {
   phase: 'loading' | 'playing';
 }
 
+export type AdBreakPosition =
+  | { kind: 'pre' }
+  | { kind: 'mid'; offsetsSec: number[] }
+  | { kind: 'post' };
+
 type AdBreakListener = (state: AdBreakState) => void;
+type AdBreakWatchedListener = (position: AdBreakPosition) => void;
 
 interface ImaLoadedEvent extends Event {
   imaAdManager?: google.ima.AdsManager;
@@ -22,6 +28,7 @@ export class AdController {
   private adManager: shaka.extern.IAdManager | null = null;
   private imaManager: google.ima.AdsManager | null = null;
   private readonly listeners = new Set<AdBreakListener>();
+  private readonly watchedListeners = new Set<AdBreakWatchedListener>();
   private ready = false;
   private adPlaying = false;
   private generation = 0;
@@ -30,6 +37,8 @@ export class AdController {
   private loaded = false;
   private timeoutId = 0;
   private finishBreak: (() => void) | null = null;
+  private activeBreakPosition: AdBreakPosition | null = null;
+  private activeBreakWatched = false;
   private breakQueue: Promise<void> = Promise.resolve();
   private postRollQueued = false;
 
@@ -48,6 +57,13 @@ export class AdController {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  onWatched(listener: AdBreakWatchedListener): () => void {
+    this.watchedListeners.add(listener);
+    return () => {
+      this.watchedListeners.delete(listener);
     };
   }
 
@@ -80,7 +96,7 @@ export class AdController {
   }
 
   /** Plays one tag. Resolves when the ad stops, errors, or fails to start in time. */
-  playBreak(tagUrl: string): Promise<void> {
+  playBreak(tagUrl: string, position: AdBreakPosition): Promise<void> {
     if (!this.ready || !this.adManager) {
       return Promise.resolve();
     }
@@ -89,6 +105,8 @@ export class AdController {
     this.activeGeneration = generation;
     this.started = false;
     this.loaded = false;
+    this.activeBreakPosition = position;
+    this.activeBreakWatched = false;
     this.publish(true, 'loading');
 
     return new Promise((resolve) => {
@@ -98,6 +116,7 @@ export class AdController {
         }
         this.activeGeneration = 0;
         this.finishBreak = null;
+        this.activeBreakPosition = null;
         window.clearTimeout(this.timeoutId);
         this.publish(false, 'loading');
         resolve();
@@ -131,12 +150,12 @@ export class AdController {
     if (this.adPlaying || !this.config.midRoll || !Number.isFinite(seconds)) {
       return;
     }
-    const due = this.pendingOffsets.some((offset) => offset <= seconds);
-    if (!due) {
+    const dueOffsets = this.pendingOffsets.filter((offset) => offset <= seconds);
+    if (!dueOffsets.length) {
       return;
     }
     this.pendingOffsets = this.pendingOffsets.filter((offset) => offset > seconds);
-    this.enqueue(this.config.midRoll.tagUrl);
+    this.enqueue(this.config.midRoll.tagUrl, { kind: 'mid', offsetsSec: dueOffsets });
   }
 
   /** Requests the post-roll tag. Shaka has already reported content completion to IMA. */
@@ -145,13 +164,13 @@ export class AdController {
       return;
     }
     this.postRollQueued = true;
-    this.enqueue(this.config.postRoll.tagUrl);
+    this.enqueue(this.config.postRoll.tagUrl, { kind: 'post' });
   }
 
-  private enqueue(tagUrl: string): void {
+  private enqueue(tagUrl: string, position: AdBreakPosition): void {
     this.breakQueue = this.breakQueue.then(
-      () => this.playBreak(tagUrl),
-      () => this.playBreak(tagUrl),
+      () => this.playBreak(tagUrl, position),
+      () => this.playBreak(tagUrl, position),
     );
   }
 
@@ -162,6 +181,8 @@ export class AdController {
     }
     manager.addEventListener('ima-ad-manager-loaded', this.onImaLoaded);
     manager.addEventListener('ad-started', this.onAdStarted);
+    manager.addEventListener('ad-complete', this.onAdWatched);
+    manager.addEventListener('ad-skipped', this.onAdWatched);
     manager.addEventListener('ad-error', this.onAdError);
     manager.addEventListener('ad-stopped', this.onAdStopped);
   }
@@ -194,6 +215,20 @@ export class AdController {
       return;
     }
     this.finishBreak?.();
+  };
+
+  private readonly onAdWatched = (): void => {
+    const position = this.activeBreakPosition;
+    if (
+      this.activeGeneration === 0 ||
+      !this.started ||
+      this.activeBreakWatched ||
+      !position
+    ) {
+      return;
+    }
+    this.activeBreakWatched = true;
+    this.watchedListeners.forEach((listener) => listener(position));
   };
 
   private readonly onAdStopped = (): void => {

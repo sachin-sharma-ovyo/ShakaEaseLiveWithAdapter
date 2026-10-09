@@ -1,6 +1,7 @@
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
 import type { PlayerState } from '../../../shared/plugininterface';
+import type { AdBreakPosition } from '../ads/AdController';
 
 type StateListener = (state: PlayerState) => void;
 type DestroyListener = () => void;
@@ -38,6 +39,13 @@ export interface VideoScale {
   duration: number;
 }
 
+/** Ad breaks displayed on top of Shaka's seek bar. */
+export interface AdBreakMarkerSchedule {
+  hasPreRoll: boolean;
+  midRollOffsetsSec: number[];
+  hasPostRoll: boolean;
+}
+
 interface BufferingEvent extends Event {
   buffering: boolean;
 }
@@ -65,6 +73,9 @@ export class ShakaPlayer {
   private lastState: PlayerState | null = null;
   private transportLocked = false;
   private controlsWereVisible = false;
+  private adBreakMarkerSchedule: AdBreakMarkerSchedule | null = null;
+  private adBreakMarkerLayer: HTMLElement | null = null;
+  private lastAdBreakMarkerSignature = '';
   private readonly stateListeners = new Set<StateListener>();
   private readonly destroyListeners = new Set<DestroyListener>();
   private readonly errorListeners = new Set<ErrorListener>();
@@ -199,6 +210,9 @@ export class ShakaPlayer {
     if (this.controlsWereVisible) {
       controls?.showUI();
     }
+    // Re-enabling Shaka controls rebuilds the seek-bar DOM. Recreate our
+    // marker layer after that rebuild has completed.
+    window.requestAnimationFrame(() => this.renderAdBreakMarkers());
   }
 
   isLive(): boolean {
@@ -211,6 +225,41 @@ export class ShakaPlayer {
 
   getContainer(): HTMLElement | null {
     return this.video.parentElement;
+  }
+
+  /**
+   * Adds the configured pre-, mid-, and post-roll positions to Shaka's seek bar.
+   * Mid-roll offsets are content times, so they are placed relative to Shaka's
+   * current seek range and automatically hidden when outside a live window.
+   */
+  setAdBreakMarkers(schedule: AdBreakMarkerSchedule): void {
+    this.adBreakMarkerSchedule = {
+      hasPreRoll: schedule.hasPreRoll,
+      midRollOffsetsSec: schedule.midRollOffsetsSec
+        .filter((offset) => Number.isFinite(offset) && offset >= 0)
+        .sort((left, right) => left - right),
+      hasPostRoll: schedule.hasPostRoll,
+    };
+    this.renderAdBreakMarkers();
+  }
+
+  /** Removes a watched ad break from the in-memory marker schedule. */
+  markAdBreakWatched(position: AdBreakPosition): void {
+    const schedule = this.adBreakMarkerSchedule;
+    if (!schedule) {
+      return;
+    }
+    if (position.kind === 'pre') {
+      schedule.hasPreRoll = false;
+    } else if (position.kind === 'post') {
+      schedule.hasPostRoll = false;
+    } else {
+      const watchedOffsets = new Set(position.offsetsSec);
+      schedule.midRollOffsetsSec = schedule.midRollOffsetsSec.filter(
+        (offset) => !watchedOffsets.has(offset),
+      );
+    }
+    this.renderAdBreakMarkers();
   }
 
   /**
@@ -291,6 +340,12 @@ export class ShakaPlayer {
 
   private bindVideoEvents(): void {
     this.video.addEventListener('playing', () => this.emitState('playing'));
+    this.video.addEventListener('durationchange', () => this.renderAdBreakMarkers());
+    this.video.addEventListener('timeupdate', () => {
+      if (this.player.isLive()) {
+        this.renderAdBreakMarkers();
+      }
+    });
     this.video.addEventListener('pause', () => {
       if (!this.video.ended) {
         this.emitState('paused');
@@ -304,6 +359,7 @@ export class ShakaPlayer {
   }
 
   private bindPlayerEvents(): void {
+    this.player.addEventListener('loaded', () => this.renderAdBreakMarkers());
     this.player.addEventListener('buffering', (event) => {
       const buffering = (event as BufferingEvent).buffering;
       if (buffering) {
@@ -318,6 +374,71 @@ export class ShakaPlayer {
       const message = detail?.message || `Shaka Player error ${detail?.code ?? ''}`.trim();
       this.errorListeners.forEach((listener) => listener(message));
     });
+  }
+
+  private renderAdBreakMarkers(): void {
+    const schedule = this.adBreakMarkerSchedule;
+    const layer = this.getAdBreakMarkerLayer();
+    if (!schedule || !layer) {
+      return;
+    }
+
+    const seekRange = this.player.seekRange();
+    const seekRangeSize = seekRange.end - seekRange.start;
+    if (!Number.isFinite(seekRangeSize) || seekRangeSize <= 0) {
+      return;
+    }
+
+    const markers: Array<{ kind: 'pre' | 'mid' | 'post'; position: number }> = [];
+    if (schedule.hasPreRoll) {
+      markers.push({ kind: 'pre', position: 0 });
+    }
+    for (const offset of schedule.midRollOffsetsSec) {
+      if (offset < seekRange.start || offset > seekRange.end) {
+        continue;
+      }
+      markers.push({
+        kind: 'mid',
+        position: (offset - seekRange.start) / seekRangeSize,
+      });
+    }
+    if (schedule.hasPostRoll) {
+      markers.push({ kind: 'post', position: 1 });
+    }
+
+    const signature = markers
+      .map(({ kind, position }) => `${kind}:${position.toFixed(5)}`)
+      .join('|');
+    if (signature === this.lastAdBreakMarkerSignature) {
+      return;
+    }
+    this.lastAdBreakMarkerSignature = signature;
+
+    const fragment = document.createDocumentFragment();
+    for (const { kind, position } of markers) {
+      const marker = document.createElement('span');
+      marker.className = `app-ad-marker app-ad-marker-${kind}`;
+      marker.style.left = `${position * 100}%`;
+      fragment.appendChild(marker);
+    }
+    layer.replaceChildren(fragment);
+  }
+
+  private getAdBreakMarkerLayer(): HTMLElement | null {
+    if (this.adBreakMarkerLayer?.isConnected) {
+      return this.adBreakMarkerLayer;
+    }
+    const seekBar = this.getContainer()?.querySelector<HTMLElement>('.shaka-seek-bar-container');
+    if (!seekBar) {
+      return null;
+    }
+    const layer = document.createElement('div');
+    layer.className = 'app-ad-markers';
+    layer.setAttribute('aria-hidden', 'true');
+    seekBar.prepend(layer);
+    this.adBreakMarkerLayer = layer;
+    this.lastAdBreakMarkerSignature = '';
+    return layer;
   }
 }
 
