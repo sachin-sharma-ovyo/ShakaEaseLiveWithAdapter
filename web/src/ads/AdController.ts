@@ -1,5 +1,6 @@
 import type { AdsConfig } from '../../../shared/brand';
 import type shaka from 'shaka-player/dist/shaka-player.ui';
+import { isPrematureContentEnd, onPlaybackTime } from '../utils/media';
 
 export interface AdBreakState {
   active: boolean;
@@ -156,6 +157,23 @@ export class AdController {
     }
     this.pendingOffsets = this.pendingOffsets.filter((offset) => offset > seconds);
     this.enqueue(this.config.midRoll.tagUrl, { kind: 'mid', offsetsSec: dueOffsets });
+  }
+
+  /**
+   * Mid-rolls follow the content playhead. `ended` from an ad that reused this
+   * element is ignored; post-roll runs when the content itself ends.
+   */
+  bindContent(video: HTMLMediaElement): void {
+    const onTime = () => {
+      this.onContentTime(video.currentTime);
+    };
+    onPlaybackTime(video, onTime);
+    video.addEventListener('ended', () => {
+      if (this.isAdPlaying || isPrematureContentEnd(video)) {
+        return;
+      }
+      this.onContentEnded();
+    });
   }
 
   /** Requests the post-roll tag. Shaka has already reported content completion to IMA. */
