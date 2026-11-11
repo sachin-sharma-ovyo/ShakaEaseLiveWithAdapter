@@ -1,0 +1,383 @@
+You are working in VS Code with these repositories in the same workspace:
+
+- white-label-react: the React application consuming the player.
+- white-label-player: the reusable player library and its standalone demo.
+
+Implement and verify the integration described below. Inspect the existing implementation first: some or all of these changes may already exist. Preserve working changes and complete only what is missing or incorrect.
+
+Do not merely provide a plan. Carry the authorized implementation through source changes, package generation, installation and appropriate verification.
+
+OBJECTIVE
+
+The React application must consume the reusable web package built from the local white-label-player repository, support its Bitmovin and Shaka engines, use the package’s own back button, and support Google IMA client-side advertising for Shaka.
+
+For now, advertising configuration must come from replaceable mock data in white-label-react. The player library must contain the reusable advertising implementation, without depending on React application mocks.
+
+Treat the current local player checkout as the intended latest source. Inspect its branch and commit and report them. Do not require fetching remote code unless necessary and authorized.
+
+INITIAL INVESTIGATION AND WORK PRESERVATION
+
+1. Read applicable AGENTS.md files and repository instructions, including the player repository’s Web development skill if present.
+2. Inspect git status and relevant staged/unstaged diffs in both repositories.
+3. Preserve unrelated staged, unstaged and untracked work. Do not reset, clean, stash, stage, commit or push automatically.
+4. Keep this task scoped to Web. Do not modify Android, Android TV, iOS, tvOS, Kotlin, Swift, Gradle or Xcode code.
+5. Do not print environment secrets, licence keys or credentials.
+6. Preserve existing file formatting and line endings where practical; avoid whole-file formatting churn.
+7. Inspect source, package manifests, lockfiles, installed package metadata and public declaration files. Do not assume matching semantic version strings mean matching builds.
+
+ARCHITECTURE TO PRESERVE
+
+In the existing architecture:
+
+- The reusable Web package is normally named @white-label/player-web.
+- Public entry points include:
+  - @white-label/player-web/bitmovin
+  - @white-label/player-web/shaka
+  - @white-label/player-web/easelive
+  - associated CSS exports
+- white-label-react normally has:
+  - src/services/player/BitmovinPlayer.ts
+  - src/services/player/ShakaPlayer.tsx
+  - src/domain/content_page/PlayerBridge.ts
+  - src/ui/elements/VideoPlayerOverlay.tsx
+- The React app’s adapters should remain thin.
+- The package owns SDK integration and playback behaviour.
+- @white-label/ui-react supplies the shared visual PlaybackControl component.
+- The React app owns backend stream resolution, bookmarks, AVS session keepalive/release, navigation and host-specific layout.
+
+Verify these paths and responsibilities against the actual checkout rather than assuming they are unchanged.
+
+The standalone player demo is not the reusable library entry point. Features wired only in the demo do not automatically reach React through the package.
+
+A. UPDATE REACT TO CONSUME THE CURRENT LOCAL PLAYER BUILD
+
+1. Build the reusable player library from the intended local player source.
+2. Package and vendor it into white-label-react using the repository’s established workflow where possible.
+3. Update React’s package.json, package-lock.json and player provenance/version record.
+4. Install the new artifact.
+5. Confirm node_modules contains the actual new build, not another build with the same version string.
+6. Compare installed files against the vendored tarball, and confirm both the root lockfile and npm’s installed-package lockfile reference the same artifact.
+
+Previous installations had multiple different player artifacts all reporting version 0.2.0. Check artifact identity and contents, not only npm ls version output.
+
+Do not edit generated dist files or node_modules as the implementation. Fix source and rebuild.
+
+If the normal packaging script refuses an uncommitted Web tree, do not bypass provenance by pretending the modified code belongs to an unchanged commit. Do not commit without permission. Instead, use a uniquely named local snapshot that records the base commit and a fingerprint of the modified Web source. Explain that a production release should be repacked from the committed source.
+
+Potential environment issues to handle if encountered:
+
+- Shell scripts may contain CRLF line endings.
+- npm launcher files may lack executable permission.
+- Installed player build dependencies may differ from their lockfile.
+- React’s @white-label/ui-react may reference a missing sibling directory.
+
+Resolve these with minimal, explainable changes. Running the underlying Node CLI is acceptable when a launcher is broken. Do not rewrite unrelated scripts or reinstall everything unnecessarily.
+
+If React’s UI dependency points to an unavailable sibling checkout, use the compatible UI artifact already supplied by white-label-player when appropriate. Vendor that artifact into React, update its dependency/lockfile and record provenance. Do not silently substitute an unrelated UI version.
+
+B. USE THE PLAYER PACKAGE’S BACK BUTTON
+
+Remove React’s separate purple X/Close IconButton from VideoPlayerOverlay.
+
+Pass React’s existing close/navigation handler to the package controls through onBack:
+
+    onBack={onClose}
+
+Remove imports, refs and code used only by the old X button.
+
+The package’s back arrow must perform the same app-level close action, including existing bookmark and session cleanup behaviour.
+
+Preserve keyboard behaviour:
+- Initial focus after asynchronous controls loading.
+- Focus trapping where appropriate.
+- Focus restoration to the element that opened playback.
+- Existing Escape/fullscreen handling.
+
+Do not recreate a back arrow in React or reproduce the package’s visual implementation there.
+
+The controls may continue to receive title, seriesTitle, episodes, device, labels, Previous/Next callbacks and fullscreenTarget. Do not invent episode data for a single demo clip.
+
+C. GOOGLE IMA ADVERTISING FOR SHAKA
+
+First inspect and reuse the advertising implementation already present in white-label-player.
+
+Relevant existing components may include:
+
+- web/src/ads/AdController.ts
+- web/src/ads/adBreaks.ts
+- web/src/shaka/ShakaContentAds.ts
+- web/src/player/ContentPlaybackSession.ts
+- web/src/demo/players/shaka.ts
+- web/src/utils/gesture.ts
+
+The standalone Shaka demo already wires advertising through these components. Make that behaviour available through the reusable package.
+
+Do not duplicate its ad controller in white-label-react.
+
+PUBLIC CONFIGURATION
+
+Expose an optional typed advertising configuration through the public Shaka entry point.
+
+A suitable shape, adapted to existing contracts, is:
+
+    interface ShakaAdvertisingConfig {
+      breaks: AdBreak[];
+      timeoutMs?: number;
+    }
+
+    interface AdBreak {
+      id: string;
+      kind: 'pre' | 'mid' | 'post';
+      offsetSec: number;
+      tagUrl: string;
+    }
+
+    interface ShakaPlayerConfig extends PlayerConfig {
+      advertising?: ShakaAdvertisingConfig;
+    }
+
+Use an existing equivalent API if already implemented. Avoid unnecessary breaking changes to shared engine contracts.
+
+Offsets are content seconds. A postroll offset of zero means natural content completion.
+
+Validate configuration at the appropriate boundary. Invalid entries must not crash playback. Empty or absent advertising configuration must preserve ordinary content playback.
+
+The library must not contain hardcoded application mock schedules or sample ad tags.
+
+IMA SDK LOADING
+
+Provide bounded, shared loading of the official Google IMA HTML5 SDK:
+
+    https://imasdk.googleapis.com/js/sdkloader/ima3.js
+
+Requirements:
+
+- Reuse an already available SDK.
+- Deduplicate concurrent loading attempts.
+- Handle script errors and startup timeouts.
+- Allow a later attempt to retry after failure.
+- Do not let a failed or blocked SDK permanently prevent content playback.
+- Clean up loader listeners and timers appropriately.
+- Consult official documentation matching the installed Shaka version and current IMA integration requirements when needed.
+
+USER GESTURE AND PLAY CONTROL
+
+Use the existing Play button in the shared player controls.
+
+DO NOT add a second “Play video” button in the center of the video.
+
+The controls’ Play handler must initialize the pending IMA session directly within the user gesture when required, then execute the advertising/content sequence.
+
+Unrelated clicks, opening settings, or pressing Enter on a Back/navigation control must not accidentally start ads.
+
+While the SDK is loading, expose a coherent loading/buffering state. Once ready for user input, the existing Play control must be usable; avoid leaving it stuck buffering because content has not loaded yet.
+
+PLAYBACK LIFECYCLE
+
+The reusable Shaka implementation should:
+
+1. Create and own its player/video and ad display container.
+2. Initialize the advertising controller.
+3. Run prerolls before content.
+4. Load/resume content with the requested content start position.
+5. Schedule midrolls against the content timeline.
+6. Handle postrolls at content completion.
+7. Complete postroll handling before reporting final completion or advancing to another episode.
+8. Lock inappropriate content transport commands during ads.
+9. Handle skip, ad error, timeout and unavailable inventory without stranding content.
+10. Cancel pending work and release resources on close, source change, episode change, engine switch and repeated mount/unmount.
+
+Keep time units explicit:
+- Media positions, resume positions and ad offsets: seconds.
+- Request/startup timeouts: milliseconds.
+
+Ensure ad video time does not become a content bookmark. During advertising, preserve a valid last-content-time snapshot or an equivalent clearly defined content-time contract.
+
+Preserve cancellation checks around asynchronous SDK loading and stream loading. A destroyed player must not resume loading or append UI afterward.
+
+Handle asynchronous cleanup failures so they do not create unhandled promise rejections.
+
+AD STATE AND BACK-BUTTON OWNERSHIP
+
+Expose a subscription such as:
+
+    onAdStateChange(callback): unsubscribe
+
+It should replay the current state and report subsequent changes.
+
+Publish ad-state changes from the shared bridge/controller state transition, so both the standalone demo and packaged consumers receive consistent behaviour.
+
+IMPORTANT:
+Back-button visibility during ads belongs in white-label-player.
+
+ShakaControls must observe ad state and hide/remove its own Back button while an ad is active, restoring it after the ad ends.
+
+React should continue passing:
+
+    onBack={onClose}
+
+Do not make React conditionally pass undefined to implement Back visibility.
+
+During ads, content controls must not intercept IMA Skip/Learn more interactions. React may hide its own host UI, such as the engine picker and host Ease Live layer, based on ad state. Keep package-owned control behaviour in the package.
+
+Review focus handling during ads. Visibility-based hiding alone must not leave hidden controls in the keyboard focus trap. Verify access to IMA controls and restoration after ads.
+
+EASE LIVE
+
+Keep Ease Live optional.
+
+Coordinate it with advertising ownership so graphics and controls do not intercept ad interactions.
+
+If the existing overlay adapter supports observing advertising state, connect it to the same advertising session.
+
+Attach Ease Live at a lifecycle point where player readiness is valid. Do not attach it to a wrapper whose content load has not started and then fail its readiness promise during preroll waiting.
+
+An Ease Live failure must not terminate content playback.
+
+D. REPLACEABLE MOCK AD DATA IN REACT
+
+Create or use a dedicated host-side mock advertising provider, for example:
+
+    src/services/player/mockAdvertising.ts
+
+For now supply:
+- A preroll before content.
+- A midroll at 90 content seconds.
+- A postroll at content completion.
+- An 8,000 ms startup timeout.
+- Google’s sample VAST tags already used by the standalone demo, where suitable.
+
+Use official sample inventory, not an invented endpoint.
+
+Keep sample tags and timing data outside the reusable player library.
+
+Provide an explicit advertising prop/configuration path so backend data can replace the provider later without changing the ad engine.
+
+Mock ads should:
+- Default on in local development.
+- Be disabled locally with REACT_APP_MOCK_ADS=false.
+- Require explicit opt-in for production builds, such as REACT_APP_MOCK_ADS=true.
+
+Document these switches. Do not silently enable sample advertising in production.
+
+Only pass this advertising configuration to Shaka. Do not imply Bitmovin advertising support has been implemented.
+
+When real backend data is introduced later, it should pass through a typed, runtime-validated adapter. Avoid making raw backend DTOs the SDK’s internal contract.
+
+E. REACT AD-STATE INTEGRATION
+
+In VideoPlayerOverlay:
+
+- Pass advertising configuration through the Shaka adapter.
+- Subscribe to the bridge’s ad-state events.
+- Hide host-specific UI that would overlap ads.
+- Keep using the package controls and its Back behaviour.
+- Unsubscribe during cleanup.
+- Preserve bookmark, session keepalive/release, engine-switch and episode-switch behaviour.
+- Ensure stable configuration/callback identities do not unnecessarily remount the player.
+
+Do not remove unrelated UI or alter content navigation merely to imitate the standalone demo.
+
+F. LOCAL SERVER STARTUP ISSUE
+
+Inspect AVS_API_TARGET in .env.local without printing secrets.
+
+An earlier checkout contained this kind of malformed value:
+
+    AVS_API_TARGET=[https://backend.example](https://backend.example)
+
+It must be a plain URL:
+
+    AVS_API_TARGET=https://backend.example
+
+If the same issue exists, fix only that configuration value while preserving all other settings.
+
+Do not merely keep supplying a command-line override that leaves ordinary npm start broken.
+
+Shaka may emit missing-source-map warnings for source files not included in its published distribution. Distinguish those warnings from actual startup errors.
+
+A terminal saying “compiled with warnings” or “No issues found” does not prove the HTTP listener started. Verify the route responds, normally:
+
+    http://localhost:3000/AVS_BASE
+
+Do not suppress all warnings or disable source maps globally just to hide this output.
+
+Respect existing server processes. Do not indiscriminately kill Node processes. Stop only a process you started or one clearly identified and authorized for this task.
+
+G. VERIFICATION
+
+Run checks appropriate to the actual changes.
+
+At minimum:
+
+1. Player Web type checking.
+2. Reusable library build, including public TypeScript declarations and CSS.
+3. React type checking.
+4. React production build.
+5. Relevant existing React overlay tests.
+6. Focused advertising/session tests.
+
+Regression coverage should include:
+
+- Existing Play control starts the pending advertising session.
+- No duplicate center Play button.
+- Unrelated clicks do not start advertising.
+- Preroll/content sequencing.
+- Midroll becomes due at the configured content position.
+- Postroll finishes before host completion notification.
+- SDK loading deduplicates and retries after failure.
+- Ad error and timeout recovery.
+- Close/cancellation while SDK loading, awaiting Play, or playing an ad.
+- Ad-state subscription cleanup.
+- Package controls hide Back during ads and restore its action afterward.
+- React always forwards onBack rather than implementing package Back visibility.
+- Content bookmark time remains separate from ad time.
+- Repeated mounting and source/episode changes.
+
+Prefer tests that exercise behaviour rather than simply assert implementation details.
+
+If the checkout’s npm launcher files are not executable, run their underlying Node entry points rather than editing node_modules. If Watchman is unavailable, disable Watchman for the test run.
+
+BROWSER VERIFICATION
+
+If browser tooling is available, test actual Google sample ads in React using Shaka:
+
+- Preroll plays.
+- Existing Play control is used.
+- No center Play video button.
+- Back is hidden during ads by the player package.
+- IMA Skip/Learn more remains interactive.
+- Content resumes afterward.
+- Midroll and postroll work.
+- Closing/reopening and switching episodes do not leave ghost players or duplicate ads.
+- Settings, fullscreen and keyboard interaction remain functional.
+- Repeat the important gesture checks on supported mobile browsers when available.
+
+Do not claim real ad playback was verified based only on mocked tests, a successful build or HTTP 200.
+
+If browser verification is unavailable, complete the implementation and automated checks, then explicitly report the unverified scenarios. Do not label the result production-approved.
+
+H. DOCUMENTATION AND DELIVERY
+
+Update relevant README, changelog and package provenance records.
+
+Document:
+- The public advertising configuration.
+- Who owns SDK loading and ad lifecycle.
+- Mock-data location and environment switches.
+- How to replace mock data later.
+- How to rebuild/sync the player package.
+- Which checks were run and their actual results.
+- Any browser or device verification still outstanding.
+
+Verify the installed player artifact matches the vendored tarball and current source snapshot.
+
+At completion, provide:
+- A concise summary of changes in each repository.
+- The installed player artifact/base commit identity.
+- Tests/build results and warnings.
+- Local testing instructions.
+- Remaining production risks or unverified behaviour.
+- Which changes must be committed in each repository.
+
+Do not commit, push, publish or deploy unless explicitly authorized.
