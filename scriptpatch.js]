@@ -1,0 +1,7 @@
+const result = JSON.parse(npm(['pack', '--json', '--ignore-scripts', '--pack-destination', stagingDir, webDir], repoRoot, true));
+
+const output = Array.isArray(result)
+  ? result
+  : result && typeof result === 'object'
+    ? Object.values(result)
+    : [];
