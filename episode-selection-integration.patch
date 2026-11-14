@@ -1,0 +1,193 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 963a48a..1bd6620 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -11,6 +11,18 @@ past roughly 500 lines, move the oldest branch groups there.
+ 
+ ## [Unreleased]
+ 
++### feat/player-episode-selection — 2026-11-14 (select an episode from the player panel)
++
++#### Changed
++
++- The series player now passes the current season and episode numbers plus `onEpisodeSelect` to `@white-label/player-web`. Selecting any different episode in the Episodes panel reuses the existing in-player switch flow, fetches that episode's stream and resumes its saved bookmark. Current and invalid selections are ignored.
++- The episode panel's `Episode` type now comes through the app's player bridge from `@white-label/player-web`; this feature no longer imports that type directly from `@white-label/ui-react`. The app's other UI-library usage is unchanged.
++
++#### Notes
++
++- Requires a player package build that exposes episode selection; update it separately with `npm run player:sync`. The player package, lockfile, vendored archive and sync script are deliberately outside this change.
++- Checked with `npm run typecheck` and the 42 focused `SeriesPlayback` / `VideoPlayerOverlay` tests.
++
+ ### Fixed
+ 
+ Updated scripts/sync-white-label-player.js to check for pack-web.js instead of pack-web.sh
+diff --git a/src/domain/content_page/PlayerBridge.ts b/src/domain/content_page/PlayerBridge.ts
+index b2283ca..102a128 100644
+--- a/src/domain/content_page/PlayerBridge.ts
++++ b/src/domain/content_page/PlayerBridge.ts
+@@ -11,6 +11,7 @@ import type {
+ // The playback contract is owned by the player package (`@white-label/player-web`, WLA-435);
+ // every player entry implements it. Type-only imports, so nothing is bundled from here.
+ export type { IPlaybackTime, Unsubscribe } from '@white-label/player-web/shaka';
++export type { Episode } from '@white-label/player-web/bitmovin';
+ 
+ /** Client-side ad schedule (offsets in content seconds, timeout in ms). The package validates it. */
+ export type PlayerAdvertising = ShakaAdvertisingConfig;
+diff --git a/src/ui/content_page/SeriesPlayback.test.tsx b/src/ui/content_page/SeriesPlayback.test.tsx
+index c7c0d98..f583033 100644
+--- a/src/ui/content_page/SeriesPlayback.test.tsx
++++ b/src/ui/content_page/SeriesPlayback.test.tsx
+@@ -174,6 +174,33 @@ describe('SeriesPlaybackProvider: switching episodes', () => {
+         expect(mockOverlayProps.onNext).toEqual(expect.any(Function));
+     });
+ 
++    it('selects a non-adjacent panel episode and resumes its bookmark', async () => {
++        await start('Play one');
++        mockFetchBookmark.mockResolvedValue(300);
++        act(() => {
++            (mockOverlayProps.onEpisodeSelect as (episode: { number: number }) => void)({ number: 3 });
++        });
++        await waitFor(() => expect(mockOverlayProps.streamUrl).toBe(urlOf('e3')));
++        expect(mockExecute).toHaveBeenLastCalledWith('e3');
++        expect(mockFetchBookmark).toHaveBeenCalledWith('e3');
++        expect(mockOverlayProps.startTime).toBe(300);
++        expect(mockOverlayProps.seasonNumber).toBe(1);
++        expect(mockOverlayProps.episodeNumber).toBe(3);
++        expect(mockOverlayProps.onNext).toBeUndefined();
++    });
++
++    it('ignores the current episode and invalid panel selections', async () => {
++        await start('Play one');
++        mockExecute.mockClear();
++        for (const number of [1, 0, 4, 1.5]) {
++            act(() => {
++                (mockOverlayProps.onEpisodeSelect as (episode: { number: number }) => void)({ number });
++            });
++        }
++        expect(mockExecute).not.toHaveBeenCalled();
++        expect(mockFetchBookmark).not.toHaveBeenCalled();
++    });
++
+     it('has no Previous on the first episode and no Next on the last', async () => {
+         await start('Play one');
+         expect(mockOverlayProps.onPrevious).toBeUndefined();
+diff --git a/src/ui/content_page/SeriesPlayback.tsx b/src/ui/content_page/SeriesPlayback.tsx
+index 851f742..507797e 100644
+--- a/src/ui/content_page/SeriesPlayback.tsx
++++ b/src/ui/content_page/SeriesPlayback.tsx
+@@ -287,11 +287,13 @@ export const SeriesPlaybackProvider: React.FC<{ children: React.ReactNode }> = (
+                         activeSource === 'trailer'
+                             ? text('player.trailer.label', 'Trailer')
+                             : activeEpisode
+-                              ? episodeLabel(
+-                                    activeEpisode,
+-                                    activeSeason?.seasonIndex ?? 0,
+-                                    activeSeason?.episodes ?? [activeEpisode]
+-                                )
++                              ? seriesTitle
++                                  ? activeEpisode.episodeTitle || activeEpisode.label
++                                  : episodeLabel(
++                                        activeEpisode,
++                                        activeSeason?.seasonIndex ?? 0,
++                                        activeSeason?.episodes ?? [activeEpisode]
++                                    )
+                               : ''
+                     }
+                     session={session}
+@@ -301,6 +303,20 @@ export const SeriesPlaybackProvider: React.FC<{ children: React.ReactNode }> = (
+                     onTimeUpdate={saveProgress}
+                     onEnded={clearProgress}
+                     episodes={panelEpisodes}
++                    seasonNumber={playingIndex >= 0 && activeSeason ? activeSeason.seasonIndex + 1 : undefined}
++                    episodeNumber={playingIndex >= 0 ? playingIndex + 1 : undefined}
++                    onEpisodeSelect={
++                        playingIndex >= 0 && activeSeason
++                            ? (selected) => {
++                                  const episode = Number.isInteger(selected.number)
++                                      ? activeSeason.episodes[selected.number - 1]
++                                      : undefined;
++                                  if (episode && episode.contentId !== activeEpisode?.contentId) {
++                                      switchEpisode(episode, activeSeason);
++                                  }
++                              }
++                            : undefined
++                    }
+                     onPrevious={
+                         previousEpisode && activeSeason ? () => switchEpisode(previousEpisode, activeSeason) : undefined
+                     }
+diff --git a/src/ui/content_page/seriesHelpers.ts b/src/ui/content_page/seriesHelpers.ts
+index 5152e63..3dae46a 100644
+--- a/src/ui/content_page/seriesHelpers.ts
++++ b/src/ui/content_page/seriesHelpers.ts
+@@ -1,5 +1,5 @@
+ import React from 'react';
+-import { type Episode } from '@white-label/ui-react';
++import type { Episode } from '../../domain/content_page/PlayerBridge';
+ 
+ import { IContent } from '../../domain/content_page/Content';
+ import { ISeasonSource, PosterSize } from '../../domain/content_page/Containers';
+diff --git a/src/ui/elements/VideoPlayerOverlay.test.tsx b/src/ui/elements/VideoPlayerOverlay.test.tsx
+index 8a29716..b7fac29 100644
+--- a/src/ui/elements/VideoPlayerOverlay.test.tsx
++++ b/src/ui/elements/VideoPlayerOverlay.test.tsx
+@@ -222,6 +222,17 @@ describe('VideoPlayerOverlay', () => {
+         });
+     });
+ 
++    it('passes episode selection and current episode metadata to the package controls', async () => {
++        const episodes = [{ number: 2, title: 'Two', duration: '45m' }];
++        const onEpisodeSelect = jest.fn();
++        await renderOverlay({ episodes, seasonNumber: 1, episodeNumber: 2, onEpisodeSelect });
++        await screen.findByTestId('controls');
++        expect(mockControlsProps.episodes).toBe(episodes);
++        expect(mockControlsProps.seasonNumber).toBe(1);
++        expect(mockControlsProps.episodeNumber).toBe(2);
++        expect(mockControlsProps.onEpisodeSelect).toBe(onEpisodeSelect);
++    });
++
+     it('hands Previous / Next to the control bar only when given', async () => {
+         const onPrevious = jest.fn();
+         const onNext = jest.fn();
+diff --git a/src/ui/elements/VideoPlayerOverlay.tsx b/src/ui/elements/VideoPlayerOverlay.tsx
+index cfee502..734150e 100644
+--- a/src/ui/elements/VideoPlayerOverlay.tsx
++++ b/src/ui/elements/VideoPlayerOverlay.tsx
+@@ -1,5 +1,6 @@
+ import React, { useRef, useEffect, useState } from 'react';
+-import { ToggleButton, type Episode, type ToggleButtonOption } from '@white-label/ui-react';
++import { ToggleButton, type ToggleButtonOption } from '@white-label/ui-react';
++import type { Episode } from '../../domain/content_page/PlayerBridge';
+ 
+ import {
+     AVAILABLE_PLAYERS,
+@@ -61,6 +62,10 @@ interface IVideoPlayerOverlayProps {
+     session?: IStreamSession;
+     /** Episode list for the in-player Episodes panel. Button is hidden when empty/absent. */
+     episodes?: Episode[];
++    seasonNumber?: number;
++    episodeNumber?: number;
++    /** The host resolves the selected panel item to its episode stream. */
++    onEpisodeSelect?: (episode: Episode) => void;
+     /**
+      * Series only: play the episode before / after this one. Each transport button is disabled
+      * while its callback is absent (a movie, a trailer, the first / last episode). The host swaps
+@@ -100,6 +105,9 @@ export const VideoPlayerOverlay: React.FC<IVideoPlayerOverlayProps> = ({
+     onError,
+     session,
+     episodes,
++    seasonNumber,
++    episodeNumber,
++    onEpisodeSelect,
+     onPrevious,
+     onNext,
+     startTime,
+@@ -399,6 +407,9 @@ export const VideoPlayerOverlay: React.FC<IVideoPlayerOverlayProps> = ({
+                         //  (Ease Live, ads).
+                         genres={genres}
+                         episodes={episodes}
++                        seasonNumber={seasonNumber}
++                        episodeNumber={episodeNumber}
++                        onEpisodeSelect={onEpisodeSelect}
+                         onBack={onClose}
+                         onPrevious={onPrevious}
+                         onNext={onNext}
