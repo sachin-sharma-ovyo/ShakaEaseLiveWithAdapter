@@ -1,0 +1,732 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 472416d4c4b606caf11afcde7f5e893ef62bbf91..d3315d17f2a9660562700af473c9a761a488632b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,8 +7,17 @@ This project does not yet use versioned releases; entries land under `[Unrelease
+ 
+ ## [Unreleased]
+ 
++### Fixed
++
++- Web Shaka/IMA ads now expose the UI-library PlayPause control to resume the
++  same paused ad after advertiser click-through, while content remains locked.
++
+ ### Changed
+ 
++- Web host autoplay now starts Shaka prerolls without a mandatory Play gesture.
++  Explicit `autoplay: true` attempts playback with audio on both Shaka and
++  Bitmovin; only `muted: true` starts silently. False waits for Play. Blocked playback retains usable controls.
++
+ - **Vendored `white-label-ui` (react) bumped to 0.3.0** (`vendor/white-label-ui/`, commit
+   `c7aa317`; branch `feat/episodeListCallback`, 2026-11-13), re-synced via
+   `scripts/sync-white-label-ui.sh`. Compose and SwiftUI stay on 0.2.3 / v0.13.3 (`c7aa317` only
+diff --git a/docs/features/PF-16-client-side-ads.md b/docs/features/PF-16-client-side-ads.md
+index cb637cb50ece6f9b47c0a94f373384cb9bb7e3ad..7ed4cecf153c6b96c49e8fcf7e9d4cb3f334921c 100644
+--- a/docs/features/PF-16-client-side-ads.md
++++ b/docs/features/PF-16-client-side-ads.md
+@@ -16,6 +16,27 @@ mid-rolls at set content times (VOD only), and a post-roll. A break can hold sev
+ back to back (a pod). Skippable ads show a Skip button. Google IMA requests the ads and draws
+ their UI.
+ 
++Host startup also supports explicit autoplay; see [Web autoplay](../../web/AUTOPLAY.md).
++
++### Web Shaka ad pause/resume
++
++Both demo and packaged hosts use the shared ad path. Shaka `ad-paused` and
++`ad-resumed` events drive a `@white-label/ui-react` PlayPause control inside
++the ad surface. Resume advertisement calls the existing IMA manager’s
++`resume()`; Pause advertisement calls `pause()`. No new tag is requested.
++Content transport remains locked while paused. Loading and finished/error
++states hide the button; teardown removes its React root, DOM and SDK listeners.
++The small bottom-left control leaves IMA click-through, Skip and AdChoices
++available. Keyboard transport inside the ad surface is exempt from the
++content lock. Bitmovin Web ad support is unchanged.
++
++Regression simulation: `node web/tests/ad-resume.cjs`. Chrome on macOS:
++Google sample ad click-through opened its destination; returning exposed Resume
++advertisement and resumed playback. Space paused and Enter resumed the focused
++button. Skip remained available. Other creatives/AdChoices layouts remain to
++be checked. Tested installed Shaka 4.16.57 (lockfile specifies 4.16.51); no
++dependency changes were made.
++
+ ## 2. Acceptance criteria
+ 
+ | ID | Criterion | Verify |
+diff --git a/docs/features/README.md b/docs/features/README.md
+index a95a36467d3c74b011d6239d80641c1f2b1b2376..1831d2311143086aa1b0d856e137f6a6047e496b 100644
+--- a/docs/features/README.md
++++ b/docs/features/README.md
+@@ -63,7 +63,7 @@ Backfilled from the code on 2026-10-26 (branch `chore/agentic-feature-parity`, c
+ | PF-13 | Video quality | Contract | ✅ | ✅ | [spec](PF-13-video-quality.md) | |
+ | PF-14 | Subtitles | Contract | ✅ | ✅ | [spec](PF-14-subtitles.md) | |
+ | PF-15 | Audio language | Contract | ✅ | ✅ | [spec](PF-15-audio-language.md) | |
+-| PF-16 | Client-side ads: IMA pre/mid/post-roll, pods, skippable | Engine | ✅ | ✅ | [spec](PF-16-client-side-ads.md) | |
++| PF-16 | Client-side ads: IMA pre/mid/post-roll, pods, skippable | Engine | ✅ | ✅ | [spec](PF-16-client-side-ads.md) | Web Shaka: UI-library ad pause/resume; sample click-through verified in Chrome. |
+ | PF-17 | Ad rules and ad state | Contract, View | ✅ | ✅ | [spec](PF-17-ad-rules-and-state.md) | |
+ | PF-18 | AVS cue points to ad schedule | Shared | ✅ | ✅ | [spec](PF-18-avs-cue-points.md) | |
+ | PF-19 | Live and DVR window | Contract | 🟡 | 🟡 | [spec](PF-19-live-dvr.md) | Both adapters map a live window. Media3: the Live DVR demo (Unified Streaming, 10-minute window) shows the seek bar at the live edge, checked 2026-11-02 for PF-28; seeking in the window not yet checked. Bitmovin not run |
+diff --git a/web/AUTOPLAY.md b/web/AUTOPLAY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..161eb03d7c493a966103796e3f3cc38052f40d54
+--- /dev/null
++++ b/web/AUTOPLAY.md
+@@ -0,0 +1,48 @@
++# Host autoplay
++
++Both `@white-label/player-web/shaka` and `/bitmovin` accept:
++
++```ts
++const bridge = createBridge({ autoplay: true }); // Attempts playback with audio, no gesture gate.
++// createBridge({ autoplay: false });           // Waits for Play.
++// createBridge({ autoplay: true, muted: true }); // Explicit silent startup.
++```
++
++Autoplay and mute are independent: autoplay defaults to true in the package,
++and muted defaults to false. No startup path silently mutes audio on rejection.
++The host's content-card/Play click is a genuine interaction; it should open the
++player with `autoplay: true, muted: false`. The player attempts audible startup.
++A browser may still deny it, especially when mounting/loading occurs after the
++original click. In that case the visible player Play button retries directly
++from a new gesture. Do not synthesize clicks or claim to transfer activation.
++The existing volume control can change sound from a user gesture. No code can
++promise playback when a user/browser blocks all autoplay. Shaka catches rejected
++play attempts; Bitmovin's blocked-play warning clears buffering and reports paused.
++
++Shaka initializes IMA immediately for autoplay; false retains Play-bound
++initialization. Every request supplies `setAdWillAutoPlay` and
++`setAdWillPlayMuted`; Shaka propagates the content mute state to IMA. Prerolls
++remain ahead of content, and ads continue to lock content transport.
++
++The React host's `VideoPlayerOverlay` accepts `autoplay` (default false), e.g.
++`<VideoPlayerOverlay autoplay={true} {...otherProps} />`, forwarding it through
++both service adapters. Sync a package built from these player sources for the
++new audio/ad startup behavior. The standalone demo retains its existing startup.
++
++Browser policies checked 2026-11-16:
++- [Chrome](https://developer.chrome.com/blog/autoplay): muted autoplay allowed;
++  audible playback depends on interaction, engagement, or other permission.
++- [WebKit](https://webkit.org/blog/7734/auto-play-policy-changes-for-macos/):
++  detect rejected playback; settings can block silent autoplay as well.
++- [Firefox](https://support.mozilla.org/en-US/kb/block-autoplay): sound blocked
++  by default; users can block both audio and video.
++- [Google IMA](https://developers.google.com/interactive-media-ads/docs/sdks/html5/client-side/autoplay):
++  provide autoplay/mute request flags and preserve click-to-play fallback.
++
++Verification: `node web/tests/autoplay.cjs`, `node web/tests/ad-resume.cjs`,
++typecheck, library and demo builds. A Chrome/macOS fixture using the actual
++Shaka bridge previously verified true/false with and without Google prerolls
++using the earlier muted-start policy. The default-audio correction is covered
++by configuration tests; real audible startup still requires browser QA. Bitmovin
++configuration is simulated; real playback requires a valid license key,
++which is absent in this workspace. Safari/Firefox playback is not observed.
+diff --git a/web/src/ads/AdController.ts b/web/src/ads/AdController.ts
+index c2f99790315b32793422096e18b21cd0c9a36737..915efa4d0033435de1fa394e3043c3a2351d1006 100644
+--- a/web/src/ads/AdController.ts
++++ b/web/src/ads/AdController.ts
+@@ -25,6 +25,8 @@ export class AdController {
+   private readonly listeners = new Set<AdBreakListener>();
+   private readonly watchedListeners = new Set<AdBreakWatchedListener>();
+   private ready = false;
++  private autoplay = false;
++  private adVideo: HTMLMediaElement | null = null;
+   private adPlaying = false;
+   private generation = 0;
+   private activeGeneration = 0;
+@@ -55,6 +57,13 @@ export class AdController {
+     return this.adPlaying;
+   }
+ 
++  /** Controls only the existing ad; content remains locked until the break ends. */
++  setAdPaused(paused: boolean): void {
++    if (!this.adPlaying || !this.started || !this.imaManager) return;
++    if (paused) this.imaManager.pause();
++    else this.imaManager.resume();
++  }
++
+   /** Rearm cues for a new episode; keep scheduling paused while its preroll runs. */
+   resetForContent(breaks: AdBreak[]): boolean {
+     if (this.adPlaying) return false;
+@@ -79,9 +88,12 @@ export class AdController {
+     this.unbindContent?.();
+     this.unbindContent = null;
+     this.contentVideo = null;
++    this.adVideo = null;
+     const manager = this.adManager;
+     manager?.removeEventListener('ima-ad-manager-loaded', this.onImaLoaded);
+     manager?.removeEventListener('ad-started', this.onAdStarted);
++    manager?.removeEventListener('ad-paused', this.onAdPaused);
++    manager?.removeEventListener('ad-resumed', this.onAdResumed);
+     manager?.removeEventListener('ad-complete', this.onAdWatched);
+     manager?.removeEventListener('ad-skipped', this.onAdWatched);
+     manager?.removeEventListener('ad-error', this.onAdError);
+@@ -111,10 +123,10 @@ export class AdController {
+   }
+ 
+   /**
+-   * Call from a user gesture. `initClientSide` initializes the IMA display container.
++   * Call from a user gesture or for browser-permitted autoplay. `initClientSide` initializes the IMA display container.
+    * Returns false when the SDK is missing or Shaka has no ad manager; content should continue.
+    */
+-  tryInit(adContainer: HTMLElement, video: HTMLMediaElement): boolean {
++  tryInit(adContainer: HTMLElement, video: HTMLMediaElement, autoplay = false): boolean {
+     if (this.ready) {
+       return true;
+     }
+@@ -132,6 +144,8 @@ export class AdController {
+     } catch {
+       return false;
+     }
++    this.autoplay = autoplay;
++    this.adVideo = video;
+     this.adManager = manager;
+     this.listen();
+     this.ready = true;
+@@ -177,6 +191,8 @@ export class AdController {
+       try {
+         const request = new google.ima.AdsRequest();
+         request.adTagUrl = withCorrelator(adBreak.tagUrl);
++        request.setAdWillAutoPlay(this.autoplay);
++        request.setAdWillPlayMuted(!!this.adVideo?.muted || this.adVideo?.volume === 0);
+         this.adManager?.requestClientSideAds(request);
+       } catch {
+         finish();
+@@ -251,6 +267,8 @@ export class AdController {
+     }
+     manager.addEventListener('ima-ad-manager-loaded', this.onImaLoaded);
+     manager.addEventListener('ad-started', this.onAdStarted);
++    manager.addEventListener('ad-paused', this.onAdPaused);
++    manager.addEventListener('ad-resumed', this.onAdResumed);
+     manager.addEventListener('ad-complete', this.onAdWatched);
+     manager.addEventListener('ad-skipped', this.onAdWatched);
+     manager.addEventListener('ad-error', this.onAdError);
+@@ -279,6 +297,18 @@ export class AdController {
+     this.publish(true, 'playing');
+   };
+ 
++  private readonly onAdPaused = (): void => {
++    if (this.started && this.activeGeneration !== 0 && this.activeGeneration === this.generation) {
++      this.publish(true, 'paused');
++    }
++  };
++
++  private readonly onAdResumed = (): void => {
++    if (this.started && this.activeGeneration !== 0 && this.activeGeneration === this.generation) {
++      this.publish(true, 'playing');
++    }
++  };
++
+   private readonly onAdError = (): void => {
+     if (this.activeGeneration === 0) {
+       return;
+diff --git a/web/src/ads/AdPlaybackControl.css b/web/src/ads/AdPlaybackControl.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3fa2bc64c423e096f74f3eb2993e5026286f8bf
+--- /dev/null
++++ b/web/src/ads/AdPlaybackControl.css
+@@ -0,0 +1,15 @@
++/* Only the button intercepts clicks; IMA retains its click-through and Skip UI. */
++.wlp-ad-playback-control {
++  position: absolute;
++  left: 16px;
++  bottom: 16px;
++  z-index: 10;
++  pointer-events: auto;
++  background: rgb(0 0 0 / 75%);
++  border-radius: 50%;
++  line-height: 0;
++}
++
++.wlp-ad-playback-control[hidden] {
++  display: none;
++}
+diff --git a/web/src/ads/AdPlaybackControl.ts b/web/src/ads/AdPlaybackControl.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..73e41310dc8fb477c8a84d2b55cbb67e6de5b842
+--- /dev/null
++++ b/web/src/ads/AdPlaybackControl.ts
+@@ -0,0 +1,49 @@
++import { createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { PlayPause } from '@white-label/ui-react';
++import type { AdBreakState } from './AdvertisingState';
++import './AdPlaybackControl.css';
++
++/** Ad transport lives inside IMA's surface, exempt from the content keyboard lock. */
++export class AdPlaybackControl {
++  private readonly element: HTMLDivElement;
++  private readonly root: Root;
++  private state: AdBreakState = { active: false, phase: 'loading' };
++  private destroyed = false;
++
++  constructor(private readonly container: HTMLElement, private readonly setPaused: (paused: boolean) => void) {
++    this.element = document.createElement('div');
++    this.element.className = 'wlp-ad-playback-control';
++    this.element.hidden = true;
++    container.appendChild(this.element);
++    this.root = createRoot(this.element);
++  }
++
++  update(state: AdBreakState): void {
++    if (this.destroyed) return;
++    this.state = state;
++    // Shaka can clear the surface while unloading previous content.
++    if (state.active && this.element.parentElement !== this.container) {
++      this.container.appendChild(this.element);
++    }
++    this.element.hidden = !state.active || state.phase === 'loading';
++    this.root.render(createElement(PlayPause, {
++      size: 'sm',
++      isPlaying: state.phase === 'playing',
++      label: state.phase === 'paused' ? 'Resume advertisement' : 'Pause advertisement',
++      onClick: (event) => {
++        event.stopPropagation();
++        if (!this.destroyed && this.state.active && this.state.phase !== 'loading') {
++          this.setPaused(this.state.phase === 'playing');
++        }
++      },
++    }));
++  }
++
++  destroy(): void {
++    if (this.destroyed) return;
++    this.destroyed = true;
++    this.root.unmount();
++    this.element.remove();
++  }
++}
+diff --git a/web/src/ads/AdvertisingState.ts b/web/src/ads/AdvertisingState.ts
+index 851015ceb6a86b8aa7bb38fea802e4b4870889e4..7c4025f06e12db1175ffe08db0c780ef6f2d0b0c 100644
+--- a/web/src/ads/AdvertisingState.ts
++++ b/web/src/ads/AdvertisingState.ts
+@@ -1,6 +1,6 @@
+ export interface AdBreakState {
+   active: boolean;
+-  phase: 'loading' | 'playing';
++  phase: 'loading' | 'playing' | 'paused';
+ }
+ 
+ /** The overlay observes ad ownership without depending on an SDK-specific controller. */
+diff --git a/web/src/ads/google-ima.d.ts b/web/src/ads/google-ima.d.ts
+index d0bf74eb0052e0394baadddd44b394bbe0526d49..eba5dee6fa991e1065589e29fb6f6136c148fe4a 100644
+--- a/web/src/ads/google-ima.d.ts
++++ b/web/src/ads/google-ima.d.ts
+@@ -5,6 +5,8 @@
+ declare namespace google.ima {
+   class AdsRequest {
+     adTagUrl: string;
++    setAdWillAutoPlay(autoplay: boolean): void;
++    setAdWillPlayMuted(muted: boolean): void;
+   }
+ 
+   class AdsLoader {
+@@ -13,5 +15,7 @@ declare namespace google.ima {
+ 
+   class AdsManager {
+     stop(): void;
++    pause(): void;
++    resume(): void;
+   }
+ }
+diff --git a/web/src/bitmovin/BitmovinPlaybackBridge.ts b/web/src/bitmovin/BitmovinPlaybackBridge.ts
+index 6962107f2398916d73d03ce20e0f7fdd045ce693..dc21b3c4ad7f74241fe778c3642db983810a25c7 100644
+--- a/web/src/bitmovin/BitmovinPlaybackBridge.ts
++++ b/web/src/bitmovin/BitmovinPlaybackBridge.ts
+@@ -1,4 +1,4 @@
+-import { PlayerEvent, type PlayerAPI } from 'bitmovin-player';
++import { PlayerEvent, WarningCode, type PlayerAPI } from 'bitmovin-player';
+ import type {
+   IPlaybackBridge,
+   IPlaybackSettings,
+@@ -81,6 +81,9 @@ export class BitmovinPlaybackBridge implements IPlaybackBridge {
+ 
+     await player.load(streamUrl, drmLicenseUrl, startTime);
+ 
++    // A loaded, paused source (manual start or blocked autoplay) must expose Play.
++    if (this.player === player && !player.getInstance().isPlaying() && !player.getInstance().isStalled()) this.emitBuffering(false);
++
+     // One snapshot so the host UI starts with the right state.
+     this.emitTime();
+     this.emitVolume();
+@@ -182,6 +185,12 @@ export class BitmovinPlaybackBridge implements IPlaybackBridge {
+   }
+ 
+   private bindEvents(p: PlayerAPI): void {
++    p.on(PlayerEvent.Warning, (event) => {
++      if (event.code === WarningCode.PLAYBACK_COULD_NOT_BE_STARTED) {
++        this.emitPlayState(false);
++        this.emitBuffering(false);
++      }
++    });
+     p.on(PlayerEvent.Play, () => this.emitPlayState(true));
+     p.on(PlayerEvent.Playing, () => {
+       this.emitPlayState(true);
+diff --git a/web/src/bitmovin/BitmovinPlayer.ts b/web/src/bitmovin/BitmovinPlayer.ts
+index 078a11970745fcd0617d861765ce1f668840663c..03b6982e009ff618c530525356b91caf50ae2430 100644
+--- a/web/src/bitmovin/BitmovinPlayer.ts
++++ b/web/src/bitmovin/BitmovinPlayer.ts
+@@ -18,6 +18,8 @@ export interface BitmovinPlayerOptions {
+   licenseKey?: string;
+   /** Defaults to `true`. */
+   autoplay?: boolean;
++  /** Initial audio state. Defaults to false, independently of autoplay. */
++  muted?: boolean;
+ }
+ 
+ function clamp(value: number, min: number, max: number): number {
+@@ -84,7 +86,7 @@ export class BitmovinPlayer implements IWebPlayer {
+ 
+     this.player = new Player(container, {
+       key: options.licenseKey,
+-      playback: { autoplay: options.autoplay ?? true },
++      playback: { autoplay: options.autoplay ?? true, muted: options.muted ?? false },
+       ui: false,
+     });
+ 
+diff --git a/web/src/player/ContentPlaybackSession.ts b/web/src/player/ContentPlaybackSession.ts
+index 1bf8b910535ab4c5bea5d64a80a0a27f1071843a..8624e1ab94201692c398211e7512c19f795d86ec 100644
+--- a/web/src/player/ContentPlaybackSession.ts
++++ b/web/src/player/ContentPlaybackSession.ts
+@@ -4,7 +4,7 @@ import type { IPlaybackBridge } from './PlaybackBridge';
+ 
+ /** Optional ad lifecycle. SDK-specific initialization and markers stay in the adapter. */
+ export interface ContentAdvertising extends AdvertisingState {
+-  initialize(): boolean;
++  initialize(autoplay?: boolean): boolean;
+   resetForContent(): boolean;
+   playPrerolls(isCurrent: () => boolean, onPreroll: () => void): Promise<void>;
+   resumeContent(): void;
+@@ -45,22 +45,27 @@ export class ContentPlaybackSession {
+     return true;
+   }
+ 
+-  async start({ load, startTime, gestureTarget, shouldStart, onWaiting, onLoading }: {
++  async start({ load, startTime, gestureTarget, shouldStart, autoplay = false, onWaiting, onLoading }: {
+     load: (startTime?: number) => Promise<void>;
+     startTime?: number;
+     /** Omit to accept only {@link beginFromGesture}. */
+     gestureTarget?: HTMLElement;
+     shouldStart?: (event: Event) => boolean;
++    /** Start ads immediately instead of installing a gesture gate. */
++    autoplay?: boolean;
+     onWaiting: () => void;
+     onLoading: () => void;
+   }): Promise<void> {
+     if (!this.isActive) return;
+     const ads = this.advertising;
+     if (ads) {
+-      onWaiting();
+-      // Initialize inside the original click/key event, including Next/Previous.
+-      this.startGesture = createStartGesture(gestureTarget, () => ads.initialize(), shouldStart);
+-      const ready = await this.startGesture.ready;
++      let ready = autoplay && ads.initialize(true);
++      if (!ready) {
++        onWaiting();
++        // Initialize inside the original click/key event, including Next/Previous.
++        this.startGesture = createStartGesture(gestureTarget, () => ads.initialize(), shouldStart);
++        ready = await this.startGesture.ready;
++      }
+       if (!this.isActive) return;
+       if (ready) {
+         await ads.playPrerolls(() => this.isActive, this.onPreroll);
+diff --git a/web/src/player/PlaybackBridge.ts b/web/src/player/PlaybackBridge.ts
+index ff4f648b7d86aaf808eb27768707ca4ffe1c9f40..fe46d42384bfb12bd499578f2552a1a460006ace 100644
+--- a/web/src/player/PlaybackBridge.ts
++++ b/web/src/player/PlaybackBridge.ts
+@@ -91,8 +91,10 @@ export interface IPlaybackBridge {
+ export interface PlayerConfig {
+   /** Player license key. Required by Bitmovin, ignored by Shaka. */
+   licenseKey?: string;
+-  /** Start playback as soon as the stream loads. Defaults to `true`. */
++  /** Start on load (default true). Attempts playback with the configured audio state. */
+   autoplay?: boolean;
++  /** Initial mute state. Defaults to false; autoplay never implicitly mutes audio. */
++  muted?: boolean;
+   /**
+    * Bitmovin only: distance of the subtitle text from the bottom of the video, as a percentage of
+    * its height. Defaults to 25, which clears `BitmovinControls` in a full-screen player.
+diff --git a/web/src/shaka/ShakaContentAds.ts b/web/src/shaka/ShakaContentAds.ts
+index 3b6c4f2143b50571b3184aeed962213a4b285b36..1f9bf8353d9f9131d3a68db199f72eeb63437a32 100644
+--- a/web/src/shaka/ShakaContentAds.ts
++++ b/web/src/shaka/ShakaContentAds.ts
+@@ -1,3 +1,4 @@
++import { AdPlaybackControl } from '../ads/AdPlaybackControl';
+ import { AdController } from '../ads/AdController';
+ import { createAdBreakMarkerSchedule, type AdBreak } from '../ads/adBreaks';
+ import type { AdBreakState } from '../ads/AdvertisingState';
+@@ -8,6 +9,7 @@ import type { ShakaPlaybackBridge } from './ShakaPlaybackBridge';
+ /** Shaka's ad commands and marker synchronization behind the shared session lifecycle. */
+ export class ShakaContentAds implements ContentAdvertising {
+   private readonly controller: AdController;
++  private readonly controls: AdPlaybackControl;
+ 
+   constructor(
+     private readonly player: ShakaPlayer,
+@@ -19,8 +21,10 @@ export class ShakaContentAds implements ContentAdvertising {
+     onChange: (active: boolean) => void,
+   ) {
+     this.controller = new AdController(player.getInstance(), breaks, timeoutMs);
++    this.controls = new AdPlaybackControl(adContainer, (paused) => this.controller.setAdPaused(paused));
+     this.setMarkers();
+     this.controller.onChange((state) => {
++      this.controls.update(state);
+       player.setTransportLocked(state.active);
+       bridge.setAdState(state);
+       onChange(state.active);
+@@ -37,7 +41,9 @@ export class ShakaContentAds implements ContentAdvertising {
+     return this.controller.onChange(listener);
+   }
+ 
+-  initialize(): boolean { return this.controller.tryInit(this.adContainer, this.video); }
++  initialize(autoplay = false): boolean {
++    return this.controller.tryInit(this.adContainer, this.video, autoplay);
++  }
+ 
+   resetForContent(): boolean {
+     if (!this.controller.resetForContent(this.breaks)) return false;
+@@ -60,7 +66,10 @@ export class ShakaContentAds implements ContentAdvertising {
+ 
+   finishContent(): Promise<void> { return this.controller.onContentEnded(); }
+ 
+-  destroy(): void { this.controller.destroy(); }
++  destroy(): void {
++    this.controller.destroy();
++    this.controls.destroy();
++  }
+ 
+   private setMarkers(): void {
+     const markers = createAdBreakMarkerSchedule(this.breaks);
+diff --git a/web/src/shaka/ShakaPlaybackBridge.ts b/web/src/shaka/ShakaPlaybackBridge.ts
+index 8997e21dd2c4eb113bb6af0d39d5b059d6f66d39..45ba079552b914c2cb04a1fedd3d90d2b45aebc8 100644
+--- a/web/src/shaka/ShakaPlaybackBridge.ts
++++ b/web/src/shaka/ShakaPlaybackBridge.ts
+@@ -120,7 +120,7 @@ export class ShakaPlaybackBridge implements IPlaybackBridge {
+   /**
+    * Creates and owns the wrapper, video, Shaka player and (with advertising) the IMA ad
+    * container. With usable `config.advertising`, resolves after pre-rolls and the content load;
+-   * the first `play()` (the controls' Play button) is the gesture that starts IMA.
++   * autoplay starts IMA immediately; otherwise the first Play gesture starts it.
+    */
+   async mount(
+     container: HTMLElement,
+@@ -137,8 +137,9 @@ export class ShakaPlaybackBridge implements IPlaybackBridge {
+     wrapper.style.cssText = 'position:relative;width:100%;height:100%';
+     const video = document.createElement('video');
+     video.setAttribute('playsinline', '');
+-    // With ads, content waits for Play so the pre-roll runs first.
+-    video.autoplay = advertising ? false : autoplay;
++    // Disable native autoplay so ad startup and blocked-play handling stay explicit.
++    video.autoplay = false; // Explicit play below lets blocked autoplay keep a usable Play control.
++    video.muted = this.config.muted ?? false;
+     video.style.cssText = 'width:100%;height:100%';
+     wrapper.appendChild(video);
+     container.appendChild(wrapper);
+@@ -150,6 +151,7 @@ export class ShakaPlaybackBridge implements IPlaybackBridge {
+     this.connect(player, video);
+     if (!advertising) {
+       await player.load(streamUrl, drmLicenseUrl, startTime);
++      if (autoplay && !this.destroyed) await this.tryAutoplay(player);
+       return;
+     }
+     const adContainer = document.createElement('div');
+@@ -175,8 +177,9 @@ export class ShakaPlaybackBridge implements IPlaybackBridge {
+       console.warn('[player-web] Google IMA SDK unavailable; playing content without ads.');
+       this.setStartPhase('idle');
+       adContainer.remove();
+-      video.autoplay = autoplay;
++      video.autoplay = false;
+       await load(startTime);
++      if (autoplay && !this.destroyed) await this.tryAutoplay(player);
+       return;
+     }
+     const ads = new ShakaContentAds(player, this, video, adContainer, breaks, timeoutMs, () => undefined);
+@@ -186,15 +189,21 @@ export class ShakaPlaybackBridge implements IPlaybackBridge {
+     });
+     const session = new ContentPlaybackSession(this, play, ads);
+     this.session = session;
+-    this.setStartPhase('gesture');
++    this.setStartPhase(autoplay ? 'idle' : 'gesture');
+     await session.start({
++      autoplay,
+       load,
+       startTime,
+-      onWaiting: () => undefined,
++      onWaiting: () => this.setStartPhase('gesture'),
+       onLoading: () => this.setStartPhase('idle'),
+     });
+   }
+ 
++  private async tryAutoplay(player: ShakaPlayer): Promise<void> {
++    try { await player.play(); }
++    catch (error) { console.warn('[player-web] Autoplay blocked; press Play to start:', error); }
++  }
++
+   disconnect(): void {
+     this.disposers.splice(0).forEach((dispose) => dispose());
+     this.settingsAdapter.detach();
+diff --git a/web/src/shaka/index.ts b/web/src/shaka/index.ts
+index a0b7bcd6b861592f68ad2ad34e5b76c69d7124ef..30b83ccbd8bf99cb8ef9781bb5c5876d1c91d539 100644
+--- a/web/src/shaka/index.ts
++++ b/web/src/shaka/index.ts
+@@ -4,7 +4,7 @@ import { ShakaPlaybackBridge, type ShakaPlayerConfig } from './ShakaPlaybackBrid
+ 
+ /**
+  * `config.advertising` turns on client-side Google IMA: the bridge loads the SDK, waits for
+- * the controls' Play, then runs pre-rolls, content, mid-rolls and post-rolls.
++ * the controls' Play when autoplay is false, then runs ads and content.
+  */
+ export function createBridge(config: ShakaPlayerConfig = {}): ShakaPlaybackBridge {
+   return new ShakaPlaybackBridge(config);
+diff --git a/web/tests/ad-resume.cjs b/web/tests/ad-resume.cjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a93c59866c10516c697a3c6bae5cc4a57eb62dff
+--- /dev/null
++++ b/web/tests/ad-resume.cjs
+@@ -0,0 +1,59 @@
++// SDK simulation: node web/tests/ad-resume.cjs
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const ts = require('../node_modules/typescript');
++const previous = require.extensions['.ts'];
++require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(
++  fs.readFileSync(filename, 'utf8'),
++  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } },
++).outputText, filename);
++const { AdController } = require('../src/ads/AdController.ts');
++require.extensions['.ts'] = previous;
++
++async function run() {
++  global.window = { setTimeout, clearTimeout, google: { ima: { AdsLoader: class {} } } };
++  global.google = { ima: { AdsRequest: class { setAdWillAutoPlay() {} setAdWillPlayMuted() {} } } };
++  for (const ending of ['ad-stopped', 'ad-error', 'destroy']) {
++    const manager = new EventTarget();
++    let requests = 0, pauses = 0, resumes = 0;
++    manager.initClientSide = () => {};
++    manager.requestClientSideAds = () => requests++;
++    const controller = new AdController({ getAdManager: () => manager, configure() {} }, [], 100);
++    const states = [];
++    controller.onChange(state => states.push(state));
++    const ima = { pause() { pauses++; }, resume() { resumes++; }, stop() {} };
++    assert.equal(controller.tryInit({}, {}), true);
++    const done = controller.playBreak({ id: 'pre', kind: 'pre', offsetSec: 0, tagUrl: 'https://example.test/ad' });
++    const loaded = new Event('ima-ad-manager-loaded');
++    loaded.imaAdManager = ima;
++    manager.dispatchEvent(loaded);
++    controller.setAdPaused(false);
++    assert.equal(resumes, 0, 'ignore transport during loading');
++    manager.dispatchEvent(new Event('ad-started'));
++    manager.dispatchEvent(new Event('ad-paused')); // Click-through pauses externally.
++    assert.deepEqual(states.at(-1), { active: true, phase: 'paused' });
++    assert.equal(controller.isAdPlaying, true, 'paused ad keeps content locked');
++    controller.setAdPaused(false);
++    assert.equal(resumes, 1);
++    assert.equal(states.at(-1).phase, 'paused', 'wait for observed SDK state');
++    manager.dispatchEvent(new Event('ad-resumed'));
++    assert.equal(states.at(-1).phase, 'playing');
++    controller.setAdPaused(true);
++    assert.equal(pauses, 1);
++    assert.equal(requests, 1, 'no new request or restart');
++    if (ending === 'destroy') controller.destroy();
++    else manager.dispatchEvent(new Event(ending));
++    await done;
++    assert.equal(controller.isAdPlaying, false);
++    if (ending !== 'destroy') assert.equal(states.at(-1).active, false);
++    controller.setAdPaused(false);
++    assert.equal(resumes, 1, 'completed ad cannot resume');
++    controller.destroy();
++    const count = states.length;
++    manager.dispatchEvent(new Event('ad-paused'));
++    manager.dispatchEvent(new Event('ad-resumed'));
++    assert.equal(states.length, count, 'listeners removed on teardown');
++  }
++  console.log('PASS: pause/resume, no restart, locks, completion/error, repeated creation and teardown');
++}
++run().catch(error => { console.error(error); process.exitCode = 1; });
+diff --git a/web/tests/autoplay.cjs b/web/tests/autoplay.cjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1efc91d601513f9173539ebcf2cb694074755e7f
+--- /dev/null
++++ b/web/tests/autoplay.cjs
+@@ -0,0 +1,83 @@
++// Focused startup simulation: node web/tests/autoplay.cjs
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const ts = require('../node_modules/typescript');
++const previous = require.extensions['.ts'];
++require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(
++  fs.readFileSync(filename, 'utf8'),
++  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } },
++).outputText, filename);
++const { ContentPlaybackSession } = require('../src/player/ContentPlaybackSession.ts');
++const { AdController } = require('../src/ads/AdController.ts');
++const Module = require('node:module');
++const originalLoad = Module._load;
++let sdkConfig;
++Module._load = function(name, ...args) {
++  if (name === 'bitmovin-player') return {
++    Player: class { constructor(container, config) { sdkConfig = config; } on() {} },
++    PlayerEvent: {},
++  };
++  return originalLoad.call(this, name, ...args);
++};
++const { BitmovinPlayer } = require('../src/bitmovin/BitmovinPlayer.ts');
++Module._load = originalLoad;
++require.extensions['.ts'] = previous;
++
++async function run() {
++  global.window = { setTimeout, clearTimeout, google: { ima: { AdsLoader: class {} } } };
++  global.KeyboardEvent = class {};
++  for (const autoplay of [false, true]) {
++    const calls = [];
++    const ads = {
++      isAdPlaying: false,
++      initialize(auto = false) { calls.push(['init', auto]); return true; },
++      async playPrerolls() { calls.push('ads'); },
++      resumeContent() { calls.push('resume-content'); },
++      destroy() { calls.push('destroy'); },
++    };
++    const session = new ContentPlaybackSession({}, async () => { calls.push('play'); }, ads);
++    const pending = session.start({ autoplay, load: async () => { calls.push('load'); },
++      onWaiting() { calls.push('waiting'); }, onLoading() {} });
++    if (!autoplay) {
++      assert.deepEqual(calls, ['waiting'], 'false must not initialize, request or load ads');
++      assert(session.beginFromGesture());
++    }
++    await pending;
++    assert.deepEqual(calls.filter(Array.isArray), [['init', autoplay]]);
++    assert(calls.indexOf('ads') < calls.indexOf('load'));
++    assert(calls.indexOf('load') < calls.indexOf('play'));
++    session.dispose();
++  }
++  let plays = 0;
++  const cancelled = new ContentPlaybackSession({}, async () => { plays++; }, {
++    initialize: () => true, destroy() {}, isAdPlaying: false,
++  });
++  const waiting = cancelled.start({ autoplay: false, load: async () => {}, onWaiting() {}, onLoading() {} });
++  cancelled.dispose(); await waiting;
++  assert.equal(plays, 0, 'disposal while awaiting Play must cancel startup');
++
++  for (const autoplay of [true, false]) {
++    new BitmovinPlayer({}, { licenseKey: 'simulation', autoplay });
++    assert.equal(sdkConfig.playback.autoplay, autoplay);
++    assert.equal(sdkConfig.playback.muted, false, 'autoplay must not implicitly mute audio');
++  }
++  new BitmovinPlayer({}, { licenseKey: 'simulation', autoplay: true, muted: true });
++  assert.equal(sdkConfig.playback.muted, true, 'explicit mute is honored');
++
++  let request;
++  global.google = { ima: { AdsRequest: class {
++    setAdWillAutoPlay(value) { this.autoplay = value; }
++    setAdWillPlayMuted(value) { this.muted = value; }
++  } } };
++  const manager = new EventTarget();
++  manager.initClientSide = () => {};
++  manager.requestClientSideAds = value => { request = value; };
++  const controller = new AdController({ getAdManager: () => manager, configure() {} }, [], 100);
++  controller.tryInit({}, { muted: true, volume: 1 }, true);
++  const pending = controller.playBreak({ id: 'pre', kind: 'pre', offsetSec: 0, tagUrl: 'https://example.test/ad' });
++  assert.equal(request.autoplay, true);
++  assert.equal(request.muted, true);
++  controller.destroy(); await pending;
++  console.log('PASS: true/false startup, preroll order, cancellation, IMA flags and Bitmovin SDK config');
++}
++run().catch(error => { console.error(error); process.exitCode = 1; });

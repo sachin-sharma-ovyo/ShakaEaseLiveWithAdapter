@@ -1,0 +1,47 @@
+{
+  "player": {
+    "base_commit": "fe4dd77dec51e1c27769c042e285b9bab0206738",
+    "patch": "white-label-player-ad-autoplay.patch",
+    "sha256": "3dae02d8b47e890a6e4edd74e16f3bf00c07b632a0f945fbbdaff53e5f2b144a",
+    "files": [
+      "CHANGELOG.md",
+      "docs/features/PF-16-client-side-ads.md",
+      "docs/features/README.md",
+      "web/AUTOPLAY.md",
+      "web/src/ads/AdController.ts",
+      "web/src/ads/AdPlaybackControl.css",
+      "web/src/ads/AdPlaybackControl.ts",
+      "web/src/ads/AdvertisingState.ts",
+      "web/src/ads/google-ima.d.ts",
+      "web/src/bitmovin/BitmovinPlaybackBridge.ts",
+      "web/src/bitmovin/BitmovinPlayer.ts",
+      "web/src/player/ContentPlaybackSession.ts",
+      "web/src/player/PlaybackBridge.ts",
+      "web/src/shaka/ShakaContentAds.ts",
+      "web/src/shaka/ShakaPlaybackBridge.ts",
+      "web/src/shaka/index.ts",
+      "web/tests/ad-resume.cjs",
+      "web/tests/autoplay.cjs"
+    ],
+    "verified": "Forward apply, exact resulting content, reverse applicability against base HEAD (including original line endings)."
+  },
+  "react": {
+    "base_commit": "878146d8f609703f34ac9edfb32d6d0f4ba5f838",
+    "patch": "white-label-react-autoplay-audio.patch",
+    "sha256": "84963eb6fe166778ef37632750f79d18223afa677a91f57635ccfefa89b2fcaa",
+    "files": [
+      "CHANGELOG.md",
+      "src/domain/content_page/PlayerBridge.ts",
+      "src/services/player/BitmovinPlayer.ts",
+      "src/services/player/ShakaPlayer.tsx",
+      "src/ui/elements/VideoPlayerOverlay.tsx",
+      "src/ui/elements/VideoPlayerOverlay.test.tsx",
+      "src/ui/content_page/VodDetailsContentItem.tsx",
+      "src/ui/content_page/ProgramDetailsContentItem.tsx",
+      "src/ui/content_page/SeriesPlayback.tsx",
+      "src/ui/content_page/EaseLiveDemoRail.tsx"
+    ],
+    "verified": "Forward apply, exact resulting content, reverse applicability against base HEAD (including original line endings).",
+    "supplemental_validation": "A full base checkout plus this patch was created successfully. A fresh typecheck could not run because the React checkout currently lacks node_modules/typescript/bin/tsc. Patch applicability and content checks passed; destination validation commands are in the manual."
+  }
+}

@@ -1,0 +1,5 @@
+8e84fc0193ba93348aa7edbc9533daaf6bc28b6878941f860f337b85781f58fb  PLAYER-PATCH-MANUAL.md
+763d05c07c455795b96b15f1bff4a7e893943a96958143cc8d6f84c2387de47a  REACT-PATCH-MANUAL.md
+922f60f1eaeb14b2ed61c79ebf22204e226dbd2b7516c9a5eeee2431ef55a593  manifest.json
+3dae02d8b47e890a6e4edd74e16f3bf00c07b632a0f945fbbdaff53e5f2b144a  white-label-player-ad-autoplay.patch
+84963eb6fe166778ef37632750f79d18223afa677a91f57635ccfefa89b2fcaa  white-label-react-autoplay-audio.patch
